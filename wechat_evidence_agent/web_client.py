@@ -455,6 +455,7 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
   min-height: 0;
 }
 .preview-slot {
+  position: relative;
   border: 1px solid #d8d2c4;
   background: #fff;
   display: grid;
@@ -546,8 +547,9 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
   gap: 6px;
 }
 .file-item {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
   gap: 12px;
   padding: 8px 10px;
   border: 1px solid rgba(255,255,255,.06);
@@ -561,6 +563,46 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.mini-btn {
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.mini-btn:hover {
+  border-color: var(--red);
+  color: #ffd6d6;
+  background: rgba(196,91,91,.14);
+}
+.preview-remove {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,.20);
+  background: rgba(255,255,255,.88);
+  color: #6d1d1d;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+}
+.preview-slot:hover .preview-remove,
+.preview-remove:focus {
+  opacity: 1;
+}
+.preview-remove:hover {
+  background: #c45b5b;
+  color: #fff;
 }
 .tool-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .tool-result { padding: 14px; color: var(--muted); line-height: 1.75; display: none; }
@@ -841,9 +883,24 @@ function renderImageDocxFiles() {
     name.textContent = `${index + 1}. ${file.name}`;
     const size = document.createElement("span");
     size.textContent = formatBytes(file.size);
-    item.append(name, size);
+    const remove = document.createElement("button");
+    remove.className = "mini-btn";
+    remove.type = "button";
+    remove.textContent = "移除";
+    remove.addEventListener("click", () => removeImageDocxFile(index));
+    item.append(name, size, remove);
     list.append(item);
   });
+}
+
+function removeImageDocxFile(index) {
+  if (index < 0 || index >= selectedImageDocxFiles.length) return;
+  const [removed] = selectedImageDocxFiles.splice(index, 1);
+  const url = imageDocxPreviewUrls.get(removed);
+  if (url) URL.revokeObjectURL(url);
+  imageDocxPreviewUrls.delete(removed);
+  renderImageDocxFiles();
+  renderImageDocxPreview();
 }
 
 function clearImageDocxTool() {
@@ -931,7 +988,18 @@ function createPreviewSlot(file, index) {
   const caption = document.createElement("div");
   caption.className = "word-preview-caption";
   caption.textContent = imageDocxCaption(file, index);
-  slot.append(img, caption);
+  const remove = document.createElement("button");
+  remove.className = "preview-remove";
+  remove.type = "button";
+  remove.title = "移除这张图片";
+  remove.textContent = "×";
+  remove.addEventListener("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    removeImageDocxFile(index);
+  });
+  remove.addEventListener("dragstart", event => event.preventDefault());
+  slot.append(img, caption, remove);
   return slot;
 }
 
