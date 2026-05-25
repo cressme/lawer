@@ -117,7 +117,7 @@ button, input, textarea, select { font: inherit; }
   justify-content: space-between;
   align-items: center;
   font-weight: 700;
-  margin-bottom: -8px;
+  margin-bottom: -12px;
 }
 .new-chat-btn:hover { border-color: var(--gold-2); background: rgba(201,168,76,.18); }
 .new-chat-btn span:last-child {
@@ -125,8 +125,8 @@ button, input, textarea, select { font: inherit; }
   font-size: 18px;
   line-height: 1;
 }
-.side-section { display: grid; gap: 8px; min-height: 0; }
-.side-section.history-section { flex: 1; margin-top: -2px; }
+.side-section { display: grid; gap: 6px; min-height: 0; }
+.side-section.history-section { flex: 1; margin-top: -8px; }
 .workspace-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -161,7 +161,7 @@ button, input, textarea, select { font: inherit; }
   overflow: auto;
   display: grid;
   align-content: start;
-  gap: 7px;
+  gap: 5px;
   padding-right: 2px;
 }
 .history-item {
@@ -260,7 +260,7 @@ button, input, textarea, select { font: inherit; }
 }
 .side-footer .btn {
   justify-content: flex-start;
-  padding: 9px 10px;
+  padding: 8px 10px;
   font-size: 13px;
 }
 .quick-actions {
@@ -483,6 +483,50 @@ button, input, textarea, select { font: inherit; }
   border-color: rgba(91,184,196,.25);
   background: rgba(91,184,196,.06);
 }
+.process-panel {
+  display: grid;
+  gap: 10px;
+}
+.process-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.process-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(232,212,138,.22);
+  border-top-color: var(--gold-2);
+  border-radius: 999px;
+  animation: spin .8s linear infinite;
+}
+.process-steps {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.process-step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.process-step::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--faint);
+  opacity: .55;
+}
+.process-step.active { color: var(--gold-2); }
+.process-step.active::before {
+  background: var(--gold-2);
+  opacity: 1;
+  box-shadow: 0 0 0 4px rgba(201,168,76,.10);
+}
+.process-elapsed { color: var(--faint); font-size: 12px; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .welcome-panel {
   width: min(880px, 100%);
   margin: auto auto 0;
@@ -1540,6 +1584,49 @@ function renderImages(item, images) {
   chat.scrollTop = chat.scrollHeight;
 }
 
+function startProcessIndicator(item, userText) {
+  const bubble = item.querySelector(".bubble");
+  const steps = inferProcessSteps(userText);
+  const startedAt = Date.now();
+  bubble.innerHTML = `
+    <div class="process-panel">
+      <div class="process-head">
+        <span class="process-spinner"></span>
+        <strong>正在处理请求</strong>
+      </div>
+      <div class="process-steps"></div>
+      <div class="process-elapsed">已用时 0 秒</div>
+    </div>`;
+  const stepsWrap = bubble.querySelector(".process-steps");
+  const elapsed = bubble.querySelector(".process-elapsed");
+
+  function render() {
+    const seconds = Math.floor((Date.now() - startedAt) / 1000);
+    const activeIndex = Math.min(Math.floor(seconds / 4), steps.length - 1);
+    stepsWrap.innerHTML = "";
+    steps.forEach((step, index) => {
+      const row = document.createElement("div");
+      row.className = "process-step" + (index === activeIndex ? " active" : "");
+      row.textContent = index < activeIndex ? `${step} ✓` : step;
+      stepsWrap.append(row);
+    });
+    elapsed.textContent = `已用时 ${seconds} 秒`;
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  render();
+  const timer = setInterval(render, 1000);
+  return () => clearInterval(timer);
+}
+
+function inferProcessSteps(text) {
+  const content = String(text || "");
+  if (/聊天|联系人|记录|微信|图片|证据/.test(content)) {
+    return ["理解律师意图", "定位微信数据与联系人", "解密并提取聊天材料", "整理文字与图片证据", "生成可读分析结果"];
+  }
+  return ["理解律师意图", "选择合适工具", "执行处理", "整理输出结果"];
+}
+
 function ensureLightbox() {
   let box = document.getElementById("imageLightbox");
   if (box) return box;
@@ -1637,13 +1724,16 @@ async function sendMessage() {
   input.value = "";
   addMessage("user", text);
   const pending = addMessage("assistant", "正在处理...", {persist: false});
+  const stopProcessIndicator = startProcessIndicator(pending, text);
   document.getElementById("send").disabled = true;
   try {
     const data = await api("/api/chat", {message: text});
+    stopProcessIndicator();
     pending.querySelector(".bubble").textContent = data.response;
     renderImages(pending, data.images);
     appendMessageToCurrent("assistant", data.response, data.images || []);
   } catch (err) {
+    stopProcessIndicator();
     pending.querySelector(".bubble").textContent = err.message;
     appendMessageToCurrent("assistant", err.message, []);
   } finally {
