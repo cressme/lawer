@@ -86,7 +86,7 @@ def generate_image_evidence_docx(
 
         safe_title = _safe_filename(title or "图片证据材料")
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        file_path = output_dir / f"{safe_title}_{timestamp}_{uuid4().hex[:6]}.docx"
+        file_path = (output_dir / f"{safe_title}_{timestamp}_{uuid4().hex[:6]}.docx").resolve()
         doc.save(file_path)
     finally:
         rmtree(work_dir, ignore_errors=True)

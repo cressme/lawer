@@ -9,6 +9,9 @@ import concurrent.futures
 import webbrowser
 import re
 import mimetypes
+import os
+import subprocess
+import sys
 from email.parser import BytesParser
 from email.policy import default as email_policy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -375,9 +378,106 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
 .tool-card h4 { margin: 0; font-size: 16px; }
 .tool-card p { margin: 0; color: var(--muted); line-height: 1.65; font-size: 13px; }
 .tool-tag { color: var(--gold-2); font-size: 12px; }
-.tool-detail { max-width: 980px; display: grid; gap: 16px; }
+.tool-detail { max-width: 1320px; display: grid; gap: 16px; }
 .tool-detail.hidden { display: none; }
 .tool-panel { padding: 16px; display: grid; gap: 15px; }
+.tool-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 16px;
+}
+.tool-head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.image-docx-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.preview-panel {
+  min-height: 520px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+.preview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.preview-pages {
+  display: grid;
+  gap: 18px;
+}
+.word-page {
+  width: min(100%, 540px);
+  aspect-ratio: 210 / 297;
+  margin: 0 auto;
+  padding: 20px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 4px;
+  background: #f8f6ef;
+  color: #1b1b1b;
+  box-shadow: 0 18px 40px rgba(0,0,0,.32);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+}
+.word-page-title {
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.2;
+}
+.word-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+  min-height: 0;
+}
+.preview-slot {
+  border: 1px solid #d8d2c4;
+  background: #fff;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 5px;
+  padding: 6px;
+  cursor: grab;
+  min-width: 0;
+  min-height: 0;
+}
+.preview-slot:active { cursor: grabbing; }
+.preview-slot.dragging { opacity: .45; outline: 2px solid var(--gold); }
+.preview-slot.drop-target { outline: 2px solid var(--cyan); }
+.preview-slot img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  background: #f4f4f4;
+}
+.word-preview-caption {
+  color: #333;
+  font-size: 8px;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+.preview-empty {
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  border: 1px dashed var(--line-2);
+  border-radius: 8px;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.7;
+  padding: 24px;
+}
 .upload-box {
   border: 1px dashed var(--line-2);
   border-radius: 8px;
@@ -416,6 +516,7 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
   color: var(--muted);
   font-size: 12px;
 }
+.file-item.active { border-color: rgba(201,168,76,.5); color: var(--text); }
 .file-item span:first-child {
   min-width: 0;
   overflow: hidden;
@@ -425,6 +526,7 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
 .tool-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .tool-result { padding: 14px; color: var(--muted); line-height: 1.75; display: none; }
 .tool-result.open { display: block; }
+.result-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0; }
 .tool-result a { color: var(--gold-2); text-decoration: none; }
 .tool-result a:hover { text-decoration: underline; }
 .modal-backdrop {
@@ -464,6 +566,7 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
   .topbar { padding: 0 18px; }
   .chat, .composer { padding-left: 18px; padding-right: 18px; }
   .tools-content { padding: 18px; }
+  .image-docx-layout { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
 }
 </style>
@@ -549,34 +652,52 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
           </div>
         </div>
         <div class="tool-detail hidden" id="imageDocxTool">
-          <div class="section-title">
-            <h3>图片证据排版</h3>
-            <p>支持 jpg、jpeg、png、bmp、webp，单次最多处理 50 张，按导入顺序一页四张排版。</p>
-          </div>
-          <section class="tool-panel">
-            <div class="upload-box">
-              <input id="imageDocxFiles" type="file" accept=".jpg,.jpeg,.png,.bmp,.webp,image/*" multiple hidden onchange="imageFilesChanged()">
-              <div class="tool-actions">
-                <button class="btn primary" onclick="document.getElementById('imageDocxFiles').click()">选择图片</button>
-                <button class="btn" onclick="clearImageDocxTool()">清空</button>
-              </div>
-              <div class="hint" id="imageDocxCount">尚未选择图片。</div>
-              <div class="file-list" id="imageDocxFileList"></div>
+          <div class="tool-head">
+            <div class="section-title">
+              <h3>图片证据排版</h3>
+              <p>支持 jpg、jpeg、png、bmp、webp，单次最多处理 50 张。右侧预览即 Word 中的一页四张排列，可拖拽调整顺序。</p>
             </div>
-            <div class="form-grid">
-              <div class="field">
-                <label>文档标题</label>
-                <input id="imageDocxTitle" value="图片证据材料">
-              </div>
-              <label class="check-row"><input id="imageDocxShowIndex" type="checkbox" checked> 显示序号</label>
-              <label class="check-row"><input id="imageDocxShowFilename" type="checkbox" checked> 显示文件名</label>
-            </div>
-            <div class="tool-actions">
-              <button class="btn primary" id="imageDocxRun" onclick="runImageDocxTool()">生成 Word</button>
+            <div class="tool-head-actions">
               <button class="btn" onclick="showToolsHome()">返回工具列表</button>
             </div>
-            <div class="tool-result" id="imageDocxResult"></div>
-          </section>
+          </div>
+          <div class="image-docx-layout">
+            <section class="tool-panel">
+              <div class="upload-box">
+                <input id="imageDocxFiles" type="file" accept=".jpg,.jpeg,.png,.bmp,.webp,image/*" multiple hidden onchange="imageFilesChanged()">
+                <div class="tool-actions">
+                  <button class="btn primary" onclick="document.getElementById('imageDocxFiles').click()">选择图片</button>
+                  <button class="btn" onclick="clearImageDocxTool()">清空</button>
+                </div>
+                <div class="hint" id="imageDocxCount">尚未选择图片。</div>
+                <div class="file-list" id="imageDocxFileList"></div>
+              </div>
+              <div class="form-grid">
+                <div class="field">
+                  <label>文档标题</label>
+                  <input id="imageDocxTitle" value="图片证据材料" oninput="renderImageDocxPreview()">
+                </div>
+                <label class="check-row"><input id="imageDocxShowIndex" type="checkbox" checked onchange="renderImageDocxPreview()"> 显示序号</label>
+                <label class="check-row"><input id="imageDocxShowFilename" type="checkbox" checked onchange="renderImageDocxPreview()"> 显示文件名</label>
+              </div>
+              <div class="tool-actions">
+                <button class="btn primary" id="imageDocxRun" onclick="runImageDocxTool()">生成 Word</button>
+              </div>
+              <div class="tool-result" id="imageDocxResult"></div>
+            </section>
+            <section class="tool-panel preview-panel">
+              <div class="preview-toolbar">
+                <div>
+                  <div class="label">排版预览</div>
+                  <div class="value" id="imageDocxPreviewCount">尚未选择图片</div>
+                </div>
+                <div class="hint">拖动图片卡片调整导出顺序</div>
+              </div>
+              <div id="imageDocxPreview" class="preview-pages">
+                <div class="preview-empty">选择图片后，这里会显示 Word 页面中的一页四张排版效果。</div>
+              </div>
+            </section>
+          </div>
         </div>
       </section>
     </section>
@@ -630,6 +751,8 @@ let statusCache = {};
 let lightboxImages = [];
 let lightboxIndex = 0;
 let selectedImageDocxFiles = [];
+let imageDocxPreviewUrls = new Map();
+let draggedImageDocxIndex = null;
 
 function showWorkspace(name) {
   document.getElementById("caseWorkspace").classList.toggle("hidden", name !== "case");
@@ -651,8 +774,11 @@ function showToolsHome() {
 
 function imageFilesChanged() {
   const inputEl = document.getElementById("imageDocxFiles");
+  imageDocxPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+  imageDocxPreviewUrls = new Map();
   selectedImageDocxFiles = Array.from(inputEl.files || []);
   renderImageDocxFiles();
+  renderImageDocxPreview();
 }
 
 function renderImageDocxFiles() {
@@ -661,10 +787,11 @@ function renderImageDocxFiles() {
   list.innerHTML = "";
   if (!selectedImageDocxFiles.length) {
     count.textContent = "尚未选择图片。";
+    renderImageDocxPreview();
     return;
   }
   count.textContent = `已选择 ${selectedImageDocxFiles.length} 张图片，超过 50 张时只处理前 50 张。`;
-  selectedImageDocxFiles.slice(0, 80).forEach((file, index) => {
+  selectedImageDocxFiles.slice(0, 50).forEach((file, index) => {
     const item = document.createElement("div");
     item.className = "file-item";
     const name = document.createElement("span");
@@ -677,11 +804,120 @@ function renderImageDocxFiles() {
 }
 
 function clearImageDocxTool() {
+  imageDocxPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+  imageDocxPreviewUrls = new Map();
   selectedImageDocxFiles = [];
   document.getElementById("imageDocxFiles").value = "";
   document.getElementById("imageDocxResult").classList.remove("open");
   document.getElementById("imageDocxResult").innerHTML = "";
   renderImageDocxFiles();
+  renderImageDocxPreview();
+}
+
+function renderImageDocxPreview() {
+  const wrap = document.getElementById("imageDocxPreview");
+  const count = document.getElementById("imageDocxPreviewCount");
+  if (!wrap || !count) return;
+  wrap.innerHTML = "";
+  const files = selectedImageDocxFiles.slice(0, 50);
+  if (!files.length) {
+    count.textContent = "尚未选择图片";
+    wrap.innerHTML = `<div class="preview-empty">选择图片后，这里会显示 Word 页面中的一页四张排版效果。</div>`;
+    return;
+  }
+  count.textContent = `${files.length} 张图片，预计 ${Math.ceil(files.length / 4)} 页`;
+  const title = document.getElementById("imageDocxTitle").value.trim() || "图片证据材料";
+  for (let start = 0; start < files.length; start += 4) {
+    const page = document.createElement("div");
+    page.className = "word-page";
+    const pageTitle = document.createElement("div");
+    pageTitle.className = "word-page-title";
+    pageTitle.textContent = title;
+    const grid = document.createElement("div");
+    grid.className = "word-grid";
+    files.slice(start, start + 4).forEach((file, offset) => {
+      grid.append(createPreviewSlot(file, start + offset));
+    });
+    for (let i = files.slice(start, start + 4).length; i < 4; i += 1) {
+      const empty = document.createElement("div");
+      empty.className = "preview-slot";
+      empty.style.cursor = "default";
+      grid.append(empty);
+    }
+    page.append(pageTitle, grid);
+    wrap.append(page);
+  }
+}
+
+function createPreviewSlot(file, index) {
+  const slot = document.createElement("div");
+  slot.className = "preview-slot";
+  slot.draggable = true;
+  slot.dataset.index = String(index);
+  slot.addEventListener("dragstart", event => {
+    draggedImageDocxIndex = index;
+    slot.classList.add("dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(index));
+  });
+  slot.addEventListener("dragend", () => {
+    draggedImageDocxIndex = null;
+    document.querySelectorAll(".preview-slot").forEach(item => item.classList.remove("dragging", "drop-target"));
+  });
+  slot.addEventListener("dragover", event => {
+    event.preventDefault();
+    slot.classList.add("drop-target");
+  });
+  slot.addEventListener("dragleave", () => slot.classList.remove("drop-target"));
+  slot.addEventListener("drop", event => {
+    event.preventDefault();
+    slot.classList.remove("drop-target");
+    const from = draggedImageDocxIndex ?? Number(event.dataTransfer.getData("text/plain"));
+    moveImageDocxFile(from, index);
+  });
+
+  const img = document.createElement("img");
+  img.src = getImageDocxPreviewUrl(file);
+  img.alt = file.name;
+  const caption = document.createElement("div");
+  caption.className = "word-preview-caption";
+  caption.textContent = imageDocxCaption(file, index);
+  slot.append(img, caption);
+  return slot;
+}
+
+function moveImageDocxFile(from, to) {
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from === to) return;
+  if (from < 0 || to < 0 || from >= selectedImageDocxFiles.length || to >= selectedImageDocxFiles.length) return;
+  const [file] = selectedImageDocxFiles.splice(from, 1);
+  selectedImageDocxFiles.splice(to, 0, file);
+  renderImageDocxFiles();
+  renderImageDocxPreview();
+}
+
+function getImageDocxPreviewUrl(file) {
+  if (!imageDocxPreviewUrls.has(file)) {
+    imageDocxPreviewUrls.set(file, URL.createObjectURL(file));
+  }
+  return imageDocxPreviewUrls.get(file);
+}
+
+function imageDocxCaption(file, index) {
+  const showIndex = document.getElementById("imageDocxShowIndex").checked;
+  const showFilename = document.getElementById("imageDocxShowFilename").checked;
+  const parts = [];
+  if (showIndex) parts.push(`图${index + 1}`);
+  if (showFilename) parts.push(shortName(file.name, 36));
+  if (parts.length === 2) return `${parts[0]}：${parts[1]}`;
+  return parts[0] || "";
+}
+
+function shortName(name, maxLength) {
+  if (name.length <= maxLength) return name;
+  const dot = name.lastIndexOf(".");
+  const suffix = dot > 0 ? name.slice(dot) : "";
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  return stem.slice(0, Math.max(10, maxLength - suffix.length - 3)) + "..." + suffix;
 }
 
 async function runImageDocxTool() {
@@ -704,10 +940,16 @@ async function runImageDocxTool() {
     const data = await res.json();
     if (!res.ok || data.ok === false) throw new Error(data.error || "生成失败");
     const fileUrl = `/api/file?path=${encodeURIComponent(data.file_path)}`;
+    const openFilePayload = escapeHtml(JSON.stringify({path: data.file_path}));
+    const openFolderPayload = escapeHtml(JSON.stringify({path: data.file_path}));
     const skipped = (data.skipped || []).map(item => `<div>${escapeHtml(item.file || "")}：${escapeHtml(item.reason || "")}</div>`).join("");
     showToolResult(`
       <div class="ok">Word 已生成：${data.image_count} 张图片，${data.page_count} 页。</div>
-      <div><a href="${fileUrl}" target="_blank" rel="noreferrer">打开 / 下载 Word 文件</a></div>
+      <div class="result-actions">
+        <button class="btn primary" onclick="openLocalFile(${openFilePayload})">一键打开 Word</button>
+        <button class="btn" onclick="openLocalFolder(${openFolderPayload})">查看文件位置</button>
+        <a class="btn" href="${fileUrl}" target="_blank" rel="noreferrer">浏览器下载</a>
+      </div>
       <div>${escapeHtml(data.file_path)}</div>
       ${skipped ? `<div class="warn">跳过文件：</div>${skipped}` : ""}
     `, true);
@@ -724,6 +966,22 @@ function showToolResult(html, ok) {
   result.classList.add("open");
   result.classList.toggle("bad", !ok);
   result.innerHTML = html;
+}
+
+async function openLocalFile(payload) {
+  try {
+    await api("/api/open-file", payload);
+  } catch (err) {
+    showToolResult(escapeHtml(err.message), false);
+  }
+}
+
+async function openLocalFolder(payload) {
+  try {
+    await api("/api/open-folder", payload);
+  } catch (err) {
+    showToolResult(escapeHtml(err.message), false);
+  }
 }
 
 function formatBytes(bytes) {
@@ -1097,6 +1355,16 @@ class _ClientHandler(BaseHTTPRequestHandler):
                     self._json({"ok": True, **result})
                     return
 
+                if path == "/api/open-file":
+                    self._open_local_path(payload, reveal=False)
+                    self._json({"ok": True})
+                    return
+
+                if path == "/api/open-folder":
+                    self._open_local_path(payload, reveal=True)
+                    self._json({"ok": True})
+                    return
+
             self._json({"ok": False, "error": "未知操作。"}, 404)
         except Exception as exc:
             logger.exception("Web client request failed: %s", path)
@@ -1161,6 +1429,29 @@ class _ClientHandler(BaseHTTPRequestHandler):
             show_index=show_index,
             output_root=output_root,
         )
+
+    def _open_local_path(self, payload: dict[str, Any], *, reveal: bool) -> None:
+        raw_path = str(payload.get("path", "")).strip()
+        if not raw_path:
+            raise ValueError("缺少文件路径。")
+        target = Path(raw_path).expanduser()
+        if not target.is_absolute():
+            target = Path.cwd() / target
+        target = target.resolve()
+        if not target.exists():
+            raise ValueError("文件不存在，可能已被移动或删除。")
+        if reveal:
+            if os.name == "nt":
+                subprocess.Popen(["explorer", "/select,", str(target)])
+            else:
+                opener = "open" if sys.platform == "darwin" else "xdg-open"
+                subprocess.Popen([opener, str(target.parent)])
+            return
+        if os.name == "nt":
+            os.startfile(str(target))  # type: ignore[attr-defined]
+        else:
+            opener = "open" if sys.platform == "darwin" else "xdg-open"
+            subprocess.Popen([opener, str(target)])
 
     def _save_config(self, payload: dict[str, Any]) -> None:
         cfg = self.app.config
