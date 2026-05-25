@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微信证据助手 · 使用手册</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #FEFCF8;
+  --paper-warm: #FAF6EE;
+  --paper-deep: #F3EDE0;
+  --ink: #2C2418;
+  --ink-light: #5C5347;
+  --ink-muted: #9C9488;
+  --ink-faint: #C8C0B4;
+  --accent: #B8562E;
+  --accent-light: #E8DDD4;
+  --sidebar-bg: #2C2A26;
+  --sidebar-text: #B8B4AC;
+  --sidebar-active: #E8C87C;
+  --sidebar-hover: #3C3A34;
+  --blue: #3A6FA0;
+  --blue-bg: #EBF2F8;
+  --blue-border: #B4CEE4;
+  --yellow: #A08520;
+  --yellow-bg: #FBF5E0;
+  --yellow-border: #E4D590;
+  --red: #A03A3A;
+  --red-bg: #FBECEC;
+  --red-border: #E4A0A0;
+  --green: #3A7A4A;
+  --green-bg: #ECF6EE;
+  --green-border: #A0D4AC;
+  --code-bg: #F0EBE0;
+  --sidebar-w: 280px;
+  --content-max: 780px;
+  --radius: 6px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:32px;font-size:17px}
+body{
+  font-family:'Noto Sans SC',sans-serif;
+  background:var(--paper);color:var(--ink);
+  line-height:1.9;-webkit-font-smoothing:antialiased;
+}
+::selection{background:var(--accent-light);color:var(--ink)}
+
+/* ---- progress bar ---- */
+#progress{position:fixed;top:0;left:0;height:3px;background:var(--accent);width:0;z-index:9999;transition:width .15s linear;border-radius:0 2px 2px 0}
+
+/* ---- sidebar ---- */
+.sidebar{
+  position:fixed;top:0;left:0;width:var(--sidebar-w);height:100vh;
+  background:var(--sidebar-bg);overflow-y:auto;z-index:100;
+  padding:28px 0;display:flex;flex-direction:column;
+  scrollbar-width:thin;scrollbar-color:#4C4A44 transparent;
+}
+.sidebar-brand{padding:0 24px 24px;border-bottom:1px solid #3C3A34}
+.sidebar-brand h2{
+  font-family:'Noto Serif SC',serif;font-size:15px;font-weight:700;
+  color:#F0EBE0;letter-spacing:1px;line-height:1.5;margin-bottom:4px
+}
+.sidebar-brand .ver{font-size:11px;color:var(--ink-muted);letter-spacing:.5px;font-family:'JetBrains Mono',monospace}
+.sidebar nav{flex:1;padding:16px 0;overflow-y:auto}
+.sidebar nav a{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 24px;font-size:13.5px;color:var(--sidebar-text);
+  text-decoration:none;transition:all .2s;border-left:3px solid transparent;
+  line-height:1.5;
+}
+.sidebar nav a:hover{background:var(--sidebar-hover);color:#E0DCD4}
+.sidebar nav a.active{color:var(--sidebar-active);border-left-color:var(--sidebar-active);background:rgba(232,200,124,.06)}
+.sidebar nav a .icon{font-size:15px;width:20px;text-align:center;flex-shrink:0}
+.sidebar nav .nav-chapter{
+  font-size:10px;letter-spacing:2px;text-transform:uppercase;
+  color:#6C6A64;padding:20px 24px 6px;font-weight:600;
+  font-family:'JetBrains Mono',monospace;
+}
+.sidebar nav .nav-chapter:first-child{padding-top:4px}
+.sidebar-footer{padding:16px 24px;border-top:1px solid #3C3A34;font-size:11px;color:#6C6A64;line-height:1.7}
+
+/* mobile toggle */
+.menu-toggle{
+  display:none;position:fixed;top:12px;left:12px;z-index:200;
+  width:40px;height:40px;border-radius:8px;border:1px solid var(--ink-faint);
+  background:var(--paper);cursor:pointer;
+  flex-direction:column;align-items:center;justify-content:center;gap:5px;
+}
+.menu-toggle span{display:block;width:18px;height:2px;background:var(--ink);border-radius:2px;transition:all .3s}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99}
+
+/* ---- main content ---- */
+.main{margin-left:var(--sidebar-w);min-height:100vh}
+.content{max-width:var(--content-max);margin:0 auto;padding:48px 40px 120px}
+
+/* cover */
+.cover{text-align:center;padding:80px 0 60px;border-bottom:1px solid var(--ink-faint);margin-bottom:56px}
+.cover-icon{font-size:48px;margin-bottom:20px;display:inline-block;animation:float 4s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.cover h1{
+  font-family:'Noto Serif SC',serif;font-size:clamp(28px,4vw,38px);
+  font-weight:900;line-height:1.3;margin-bottom:12px;color:var(--ink)
+}
+.cover h1 .dot{color:var(--accent)}
+.cover .subtitle{font-size:16px;color:var(--ink-light);margin-bottom:20px;font-weight:400}
+.cover .badges{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.cover .badge{
+  font-family:'JetBrains Mono',monospace;font-size:11px;
+  padding:4px 14px;border-radius:100px;
+  border:1px solid var(--ink-faint);color:var(--ink-muted);
+  letter-spacing:.5px
+}
+
+/* headings */
+.chapter{
+  margin-top:64px;margin-bottom:32px;padding-top:24px;
+  border-top:2px solid var(--ink);position:relative;
+}
+.chapter-num{
+  font-family:'Playfair Display',serif;font-size:64px;font-weight:900;
+  color:var(--paper-deep);position:absolute;top:-16px;right:0;
+  line-height:1;user-select:none;z-index:0;
+}
+.chapter h2{
+  font-family:'Noto Serif SC',serif;font-size:26px;font-weight:700;
+  color:var(--ink);position:relative;z-index:1;line-height:1.4;
+}
+h3{
+  font-family:'Noto Serif SC',serif;font-size:20px;font-weight:600;
+  color:var(--ink);margin:40px 0 16px;padding-bottom:8px;
+  border-bottom:1px solid var(--ink-faint);
+}
+h4{font-size:16px;font-weight:600;color:var(--ink);margin:28px 0 12px}
+
+/* prose */
+p{margin-bottom:16px;color:var(--ink-light)}
+strong{color:var(--ink);font-weight:600}
+ul,ol{margin:0 0 16px 24px;color:var(--ink-light)}
+li{margin-bottom:8px}
+li::marker{color:var(--accent)}
+
+/* callout boxes */
+.callout{
+  padding:16px 20px 16px 52px;border-radius:var(--radius);
+  margin:20px 0;position:relative;font-size:15px;line-height:1.8;
+  border-left:4px solid;
+}
+.callout::before{
+  position:absolute;left:16px;top:16px;font-size:20px;line-height:1;
+}
+.callout.tip{background:var(--blue-bg);border-color:var(--blue);color:#2A4A6A}
+.callout.tip::before{content:"💡"}
+.callout.warn{background:var(--yellow-bg);border-color:var(--yellow);color:#5A4A10}
+.callout.warn::before{content:"⚠️"}
+.callout.danger{background:var(--red-bg);border-color:var(--red);color:#6A2A2A}
+.callout.danger::before{content:"🚫"}
+.callout.ok{background:var(--green-bg);border-color:var(--green);color:#2A5A3A}
+.callout.ok::before{content:"✅"}
+.callout.security{background:#F5F0FA;border-color:#7A5AA0;color:#4A2A6A}
+.callout.security::before{content:"🔒"}
+.callout p{margin-bottom:8px;color:inherit}
+.callout p:last-child{margin-bottom:0}
+.callout strong{color:inherit;font-weight:700}
+
+/* code blocks */
+.code-wrap{position:relative;margin:16px 0}
+.code-wrap .copy-btn{
+  position:absolute;top:8px;right:8px;
+  padding:4px 12px;border-radius:4px;border:1px solid var(--ink-faint);
+  background:var(--paper);color:var(--ink-muted);font-size:11px;
+  cursor:pointer;font-family:'JetBrains Mono',monospace;
+  transition:all .2s;z-index:2;
+}
+.code-wrap .copy-btn:hover{background:var(--ink);color:var(--paper)}
+.code-wrap .copy-btn.copied{background:var(--green);color:#fff;border-color:var(--green)}
+pre{
+  background:var(--code-bg);border:1px solid #DDD5C8;border-radius:var(--radius);
+  padding:16px 20px;overflow-x:auto;font-family:'JetBrains Mono',monospace;
+  font-size:13.5px;line-height:1.7;color:var(--ink);
+  -webkit-overflow-scrolling:touch;
+}
+code{
+  font-family:'JetBrains Mono',monospace;font-size:.9em;
+  background:var(--code-bg);padding:2px 6px;border-radius:3px;
+  color:var(--accent);
+}
+pre code{background:none;padding:0;color:inherit;font-size:inherit}
+
+/* steps */
+.steps{counter-reset:step;margin:20px 0;padding:0;list-style:none}
+.steps li{
+  counter-increment:step;position:relative;padding:16px 16px 16px 60px;
+  margin-bottom:12px;background:var(--paper-warm);border-radius:var(--radius);
+  border:1px solid var(--ink-faint);min-height:56px;display:flex;align-items:center;
+}
+.steps li::before{
+  content:counter(step);position:absolute;left:16px;top:50%;transform:translateY(-50%);
+  width:32px;height:32px;border-radius:50%;
+  background:var(--accent);color:#fff;font-family:'Playfair Display',serif;
+  font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;
+}
+.steps li p{margin:0}
+
+/* tables */
+table{width:100%;border-collapse:collapse;margin:20px 0;font-size:14.5px}
+thead{background:var(--paper-deep)}
+th{
+  font-weight:600;text-align:left;padding:10px 14px;color:var(--ink);
+  border-bottom:2px solid var(--ink-faint);font-size:13px;
+  letter-spacing:.3px;
+}
+td{
+  padding:10px 14px;border-bottom:1px solid var(--ink-faint);
+  color:var(--ink-light);vertical-align:top;line-height:1.6;
+}
+tr:hover td{background:var(--paper-warm)}
+
+/* chat demo */
+.chat-example{
+  background:var(--paper-warm);border:1px solid var(--ink-faint);
+  border-radius:var(--radius);padding:20px;margin:16px 0;
+}
+.chat-example .user-msg,.chat-example .agent-msg{
+  display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;
+}
+.chat-example .user-msg{flex-direction:row-reverse}
+.chat-example .avatar{
+  width:28px;height:28px;border-radius:6px;display:flex;
+  align-items:center;justify-content:center;font-size:13px;flex-shrink:0;
+}
+.chat-example .user-msg .avatar{background:#4A8ABD;color:#fff}
+.chat-example .agent-msg .avatar{background:var(--accent);color:#fff}
+.chat-example .bubble{
+  padding:10px 14px;border-radius:10px;font-size:14px;
+  line-height:1.7;max-width:80%;
+}
+.chat-example .user-msg .bubble{background:#4A8ABD;color:#fff;border-top-right-radius:3px}
+.chat-example .agent-msg .bubble{background:#fff;border:1px solid var(--ink-faint);color:var(--ink-light);border-top-left-radius:3px}
+.chat-example .arrow{font-size:12px;color:var(--accent);text-align:center;margin:4px 0 12px;font-weight:600}
+
+/* command ref */
+.cmd-grid{display:grid;grid-template-columns:120px 1fr;gap:0;margin:16px 0;border:1px solid var(--ink-faint);border-radius:var(--radius);overflow:hidden}
+.cmd-grid .cmd-name{
+  padding:10px 14px;background:var(--code-bg);font-family:'JetBrains Mono',monospace;
+  font-size:13px;color:var(--accent);font-weight:500;border-bottom:1px solid var(--ink-faint);
+  display:flex;align-items:center;
+}
+.cmd-grid .cmd-desc{
+  padding:10px 14px;font-size:14px;color:var(--ink-light);
+  border-bottom:1px solid var(--ink-faint);display:flex;align-items:center;
+}
+
+/* platform tabs */
+.tab-group{margin:20px 0}
+.tab-buttons{display:flex;gap:0;border-bottom:2px solid var(--ink-faint)}
+.tab-btn{
+  padding:10px 24px;font-size:14px;font-weight:500;cursor:pointer;
+  border:none;background:none;color:var(--ink-muted);position:relative;
+  transition:color .2s;border-bottom:2px solid transparent;margin-bottom:-2px;
+}
+.tab-btn:hover{color:var(--ink)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-panel{display:none;padding:24px 0 0}
+.tab-panel.active{display:block}
+
+/* responsive */
+@media(max-width:900px){
+  .sidebar{transform:translateX(-100%);transition:transform .3s ease}
+  .sidebar.open{transform:translateX(0)}
+  .overlay.show{display:block}
+  .main{margin-left:0}
+  .content{padding:48px 20px 100px}
+  .menu-toggle{display:flex}
+  .chapter-num{font-size:48px}
+  .cover{padding:60px 0 40px}
+}
+@media(max-width:500px){
+  html{font-size:15.5px}
+  .cover h1{font-size:24px}
+  pre{font-size:12px;padding:12px}
+  .chat-example .bubble{max-width:90%}
+}
+</style>
+</head>
+<body>
+<div id="progress"></div>
+
+<button class="menu-toggle" onclick="toggleSidebar()" aria-label="菜单">
+  <span></span><span></span><span></span>
+</button>
+<div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <h2>微信证据助手<br>使用手册</h2>
+    <span class="ver">v1.0 &middot; Win / Mac</span>
+  </div>
+  <nav>
+    <div class="nav-chapter">概述</div>
+    <a href="#cover"><span class="icon">&#9671;</span>封面</a>
+    <a href="#ch1"><span class="icon">&#9733;</span>开始之前</a>
+    <div class="nav-chapter">安装与配置</div>
+    <a href="#ch2"><span class="icon">&#9881;</span>安装指南</a>
+    <div class="nav-chapter">使用教程</div>
+    <a href="#ch3"><span class="icon">&#9998;</span>日常使用</a>
+    <a href="#ch4"><span class="icon">&#9776;</span>证据清单生成</a>
+    <a href="#ch5"><span class="icon">&#9672;</span>AI 分析功能</a>
+    <div class="nav-chapter">参考</div>
+    <a href="#ch6"><span class="icon">?</span>常见问题</a>
+    <a href="#ch7"><span class="icon">&#9881;</span>配置文件详解</a>
+    <a href="#appendix"><span class="icon">&#9783;</span>附录</a>
+  </nav>
+  <div class="sidebar-footer">
+    本手册适用于 v1.0<br>
+    最后更新：2025 年 5 月
+  </div>
+</aside>
+<div class="main">
+<div class="content">
+
+<!-- ==================== COVER ==================== -->
+<section class="cover" id="cover">
+  <div class="cover-icon">&#9878;</div>
+  <h1>微信证据助手 <span class="dot">&middot;</span> 使用手册</h1>
+  <p class="subtitle">从安装到出证，手把手教你使用</p>
+  <div class="badges">
+    <span class="badge">v1.0</span>
+    <span class="badge">Windows</span>
+    <span class="badge">macOS</span>
+    <span class="badge">AI 驱动</span>
+  </div>
+</section>
+
+<!-- ==================== CH1 ==================== -->
+<div class="chapter" id="ch1">
+  <span class="chapter-num">01</span>
+  <h2>开始之前</h2>
+</div>
+
+<h3>这个工具能做什么</h3>
+<p>简单说，这个工具帮你<strong>自动从电脑上的微信里读取聊天记录</strong>，然后用 AI 帮你分析、整理成法院可用的证据材料。</p>
+<p>具体来说：</p>
+<ul>
+  <li><strong>自动读取聊天记录</strong> — 不需要手动截图、不需要一条一条复制粘贴，工具直接从微信的本地数据库读取</li>
+  <li><strong>支持所有消息类型</strong> — 文字、图片、语音、视频、转账记录、红包、文件，全部都能提取</li>
+  <li><strong>语音自动转文字</strong> — 客户发的语音消息会自动识别转为文字，方便阅读和作为书面证据</li>
+  <li><strong>AI 智能分析</strong> — 帮你从大量聊天中找出关键证据，分析争议焦点，评估证据链完整性</li>
+  <li><strong>一键生成证据清单</strong> — 直接输出符合法院要求格式的 Word 文档，包含完整的证据编号、来源、证明目的等</li>
+</ul>
+
+<h3>你需要准备什么</h3>
+<ol>
+  <li><strong>一台装了微信的电脑</strong> — 就是你平时用来和客户聊微信的那台电脑（Windows 或 Mac 都行）</li>
+  <li><strong>微信处于登录状态</strong> — 工具运行时，微信需要是打开的、已登录的状态</li>
+  <li><strong>网络连接</strong> — AI 分析功能需要联网（提取聊天记录本身不需要）</li>
+</ol>
+
+<h3>数据安全说明</h3>
+<div class="callout security">
+  <p><strong>你的数据安全是第一位的。</strong></p>
+  <p>所有聊天记录都在你自己的电脑上处理，<strong>不会上传到任何服务器</strong>。</p>
+  <p>工具只是"读取"微信的本地数据，<strong>不会修改、删除微信的任何数据</strong>。</p>
+  <p>使用 AI 分析时，只发送文字内容给 AI 服务，图片和视频原文件不会发送。</p>
+</div>
+
+<!-- ==================== CH2 ==================== -->
+<div class="chapter" id="ch2">
+  <span class="chapter-num">02</span>
+  <h2>安装指南</h2>
+</div>
+<p>别担心，虽然这是一个命令行工具，但安装过程其实很简单。按照下面的步骤，一步一步来就行。</p>
+
+<div class="tab-group">
+  <div class="tab-buttons">
+    <button class="tab-btn active" onclick="switchTab(this,'win')">Windows 安装</button>
+    <button class="tab-btn" onclick="switchTab(this,'mac')">macOS 安装</button>
+  </div>
+
+  <!-- ---- Windows ---- -->
+  <div class="tab-panel active" id="tab-win">
+    <h4>第 1 步：安装 Python</h4>
+    <p>Python 是运行本工具需要的环境，类似于"运行引擎"。</p>
+    <ol class="steps">
+      <li><p>打开浏览器，访问 <strong>python.org</strong></p></li>
+      <li><p>点击页面上方的 <strong>Downloads</strong>，再点 <strong>Download Python 3.12</strong></p></li>
+      <li><p>下载完成后运行安装程序</p></li>
+    </ol>
+
+    <div class="callout danger">
+      <p><strong>最重要的一步：安装界面底部有一个 "Add Python to PATH" 的勾选框，一定要勾上！</strong></p>
+      <p>如果忘记勾选，后面所有步骤都会出错。如果已经安装但忘记勾了，卸载重装一次就行。</p>
+    </div>
+
+    <ol class="steps" style="counter-reset:step 3">
+      <li><p>勾选后点击 <strong>Install Now</strong>，等待安装完成</p></li>
+      <li>
+        <div>
+          <p>验证安装是否成功：按键盘 <code>Win + R</code>，输入 <code>cmd</code>，按回车打开命令提示符，然后输入：</p>
+          <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code>python --version</code></pre></div>
+          <p>看到类似 <code>Python 3.12.x</code> 的输出就说明安装成功了。</p>
+        </div>
+      </li>
+    </ol>
+
+    <h4>第 2 步：下载证据助手</h4>
+    <p>把项目文件夹放到你想要的位置，比如 <code>D:\wechat_evidence_agent\</code>。</p>
+
+    <h4>第 3 步：安装依赖</h4>
+    <p>"依赖"就是工具运行需要的其他软件包，一条命令就能全部装好。</p>
+    <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code>cd D:\wechat_evidence_agent
+pip install -e ".[all]"</code></pre></div>
+
+    <div class="callout tip">
+      <p>安装过程可能需要几分钟，取决于你的网速。如果看到红色的 <code>ERROR</code> 字样，大多数情况是网络问题，重新运行一次就好。</p>
+    </div>
+
+    <h4>第 4 步：配置</h4>
+    <p>工具需要一个配置文件来知道你的偏好设置。</p>
+    <ol class="steps">
+      <li><p>在项目文件夹里找到 <code>config.example.yaml</code> 文件，复制一份并改名为 <code>config.yaml</code></p></li>
+      <li><p>用记事本打开 <code>config.yaml</code></p></li>
+      <li><p>找到 <code>openai_api_key</code> 这一行，把你的 API Key 填进去</p></li>
+    </ol>
+
+    <div class="callout warn">
+      <p><strong>什么是 API Key？</strong></p>
+      <p>API Key 就像一把"钥匙"，让工具能使用 AI 分析服务。你需要从 AI 服务商那里获取。</p>
+      <p>推荐选择（任选其一）：</p>
+      <ul>
+        <li><strong>DeepSeek</strong>（国内，便宜）：在 platform.deepseek.com 注册并创建 API Key</li>
+        <li><strong>通义千问</strong>（阿里云）：在 dashscope.aliyun.com 注册</li>
+        <li><strong>OpenAI</strong>（国外）：在 platform.openai.com 注册</li>
+      </ul>
+      <p>获取到 Key 后粘贴到配置文件即可。<strong>不要把 Key 分享给其他人。</strong></p>
+    </div>
+
+    <p>如果你用的是国内的 AI 服务，还需要修改 <code>openai_base_url</code>，具体值参见<a href="#appendix">附录</a>。</p>
+
+    <h4>第 5 步：首次运行</h4>
+    <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code>python run.py</code></pre></div>
+    <div class="callout ok">
+      <p>如果看到下面这个欢迎界面，恭喜你，安装成功了！</p>
+    </div>
+    <div class="code-wrap"><pre><code>  ╔══════════════════════════════════════════════════════╗
+  ║                                                      ║
+  ║        微 信 证 据 助 手  v1.0                       ║
+  ║        WeChat Evidence Agent                         ║
+  ║                                                      ║
+  ║   为律师打造的微信电子证据智能分析工具               ║
+  ║                                                      ║
+  ╚══════════════════════════════════════════════════════╝
+
+  输入 /help 查看可用命令，输入 /quit 退出。
+
+律师 > _</code></pre></div>
+
+    <div class="callout tip">
+      <p><strong>小提示</strong>：首次运行需要<strong>以管理员身份</strong>打开命令提示符，这样工具才能读取微信的进程信息。方法：在搜索栏输入 <code>cmd</code>，右键点击"命令提示符"，选择"以管理员身份运行"。</p>
+    </div>
+  </div>
+
+  <!-- ---- macOS ---- -->
+  <div class="tab-panel" id="tab-mac">
+    <h4>第 1 步：安装 Python</h4>
+    <p>Mac 自带的 Python 版本太旧，我们需要安装新版本。有两种方式：</p>
+
+    <p><strong>方式 A：直接下载安装包（推荐新手）</strong></p>
+    <ol class="steps">
+      <li><p>访问 <strong>python.org</strong>，下载 macOS 版安装包</p></li>
+      <li><p>双击安装，一路点"继续"直到完成</p></li>
+    </ol>
+
+    <p><strong>方式 B：用 Homebrew 安装（更专业）</strong></p>
+    <p>Homebrew 是 Mac 上的软件包管理工具，如果你还没装过，先打开"终端"（在启动台搜索"终端"或"Terminal"），粘贴以下命令：</p>
+    <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</code></pre></div>
+    <p>然后安装 Python：</p>
+    <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code>brew install python3</code></pre></div>
+
+    <h4>第 2 步：安装 SQLCipher</h4>
+    <p>Mac 上需要额外安装一个数据库解密组件。在终端输入：</p>
+    <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code># 安装 SQLCipher
+brew install sqlcipher
+
+# 设置环境变量（让 Python 能找到 SQLCipher）
+export LDFLAGS="-L$(brew --prefix sqlcipher)/lib"
+export CPPFLAGS="-I$(brew --prefix sqlcipher)/include"
+
+# 安装 Python 的 SQLCipher 接口
+pip3 install pysqlcipher3</code></pre></div>
+
+    <div class="callout tip">
+      <p>以 <code>#</code> 开头的行是注释，不需要输入。只输入不以 <code>#</code> 开头的那几行命令就行。</p>
+    </div>
+
+    <h4>第 3 步：下载并安装证据助手</h4>
+    <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code># 进入项目目录（假设放在桌面）
+cd ~/Desktop/wechat_evidence_agent
+
+# 安装所有依赖
+pip3 install -e ".[all]"</code></pre></div>
+
+    <h4>第 4 步：配置</h4>
+    <p>和 Windows 一样，复制配置文件并填写 API Key：</p>
+    <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code>cp config.example.yaml config.yaml
+open -e config.yaml</code></pre></div>
+    <p>这会用 Mac 的文本编辑器打开配置文件，找到 <code>openai_api_key</code> 填入你的 Key。</p>
+
+    <h4>第 5 步：密钥获取</h4>
+    <div class="callout warn">
+      <p><strong>Mac 比 Windows 多一个步骤</strong>：需要获取微信数据库的解密密钥。</p>
+      <p>工具会自动尝试从 macOS 钥匙串（Keychain）读取。如果自动读取失败，你需要手动设置：</p>
+    </div>
+    <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code># 方法一：设置环境变量（推荐）
+export WECHAT_DB_KEY="你的密钥（十六进制字符串）"
+
+# 方法二：运行工具时会提示你手动输入密钥</code></pre></div>
+    <div class="callout tip">
+      <p>密钥只需要获取一次。获取方法可以参考开源项目 PyWxDump 的文档说明。</p>
+    </div>
+
+    <h4>第 6 步：首次运行</h4>
+    <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code>python3 run.py</code></pre></div>
+    <p>看到欢迎界面就说明安装成功了。</p>
+  </div>
+</div>
+
+<!-- ==================== CH3 ==================== -->
+<div class="chapter" id="ch3">
+  <span class="chapter-num">03</span>
+  <h2>日常使用</h2>
+</div>
+
+<h3>启动工具</h3>
+<p>每次使用前，确保以下两件事：</p>
+<ol>
+  <li><strong>微信已打开并登录</strong>（就是你平时正常使用的状态）</li>
+  <li>打开命令行，进入项目目录，运行启动命令</li>
+</ol>
+<div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code># Windows
+cd D:\wechat_evidence_agent
+python run.py
+
+# macOS
+cd ~/Desktop/wechat_evidence_agent
+python3 run.py</code></pre></div>
+
+<h3>基本对话操作</h3>
+<p>启动后你会看到 <code>律师 ></code> 提示符，直接用中文打字告诉它你要做什么就行了。下面是 10 个最常用的操作：</p>
+
+<h4>1. 查看联系人列表</h4>
+<div class="chat-example">
+  <div class="user-msg"><div class="avatar">律</div><div class="bubble">帮我看看有哪些联系人</div></div>
+  <div class="agent-msg"><div class="avatar">助</div><div class="bubble">已列出所有联系人，共 326 人。你可以告诉我要查看谁的聊天记录。</div></div>
+</div>
+
+<h4>2. 提取全部聊天记录</h4>
+<div class="chat-example">
+  <div class="user-msg"><div class="avatar">律</div><div class="bubble">提取跟张三的所有聊天记录</div></div>
+  <div class="agent-msg"><div class="avatar">助</div><div class="bubble">已找到联系人「张三」，共提取消息 2,841 条，包含文字 2,103 条、图片 412 条、语音 298 条、转账 28 条。</div></div>
+</div>
+
+<h4>3. 按时间范围提取</h4>
+<div class="chat-example">
+  <div class="user-msg"><div class="avatar">律</div><div class="bubble">提取跟张三从2024年1月到3月的聊天</div></div>
+  <div class="agent-msg"><div class="avatar">助</div><div class="bubble">已按时间范围过滤，2024-01-01 至 2024-03-31 共 1,247 条消息。</div></div>
+</div>
+
+<h4>4. 关键词搜索</h4>
+<div class="chat-example">
+  <div class="user-msg"><div class="avatar">律</div><div class="bubble">搜索包含"借款"的消息</div></div>
+  <div class="agent-msg"><div class="avatar">助</div><div class="bubble">找到 17 条包含"借款"的消息，最早一条在 2024-01-15。要我逐条展示吗？</div></div>
+</div>
+
+<h4>5. AI 分析关键证据</h4>
+<div class="chat-example">
+  <div class="user-msg"><div class="avatar">律</div><div class="bubble">帮我分析这些聊天中的关键证据</div></div>
+  <div class="agent-msg"><div class="avatar">助</div><div class="bubble">我从对话中识别到 6 个关键证据点：1. 借款合意 2. 转账凭证 3. 还款承诺 4. 催告记录...</div></div>
+</div>
+
+<h4>6. 提取涉及金额的消息</h4>
+<div class="chat-example">
+  <div class="user-msg"><div class="avatar">律</div><div class="bubble">哪些消息涉及到金额？</div></div>
+  <div class="agent-msg"><div class="avatar">助</div><div class="bubble">共找到 12 条涉及金额的消息，总计金额约 ¥350,000。其中最大一笔为 2024-01-16 的转账 ¥200,000。</div></div>
+</div>
+
+<h4>7. 标记关键证据</h4>
+<div class="chat-example">
+  <div class="user-msg"><div class="avatar">律</div><div class="bubble">把第3、5、8条消息标记为关键证据</div></div>
+  <div class="agent-msg"><div class="avatar">助</div><div class="bubble">已标记 3 条消息为关键证据。目前共有 6 条证据标记。</div></div>
+</div>
+
+<h4>8. 生成证据清单</h4>
+<div class="chat-example">
+  <div class="user-msg"><div class="avatar">律</div><div class="bubble">生成证据清单</div></div>
+  <div class="agent-msg"><div class="avatar">助</div><div class="bubble">已生成证据清单，共 12 份证据。文件保存为「张三_证据清单.docx」。</div></div>
+</div>
+
+<h4>9. 指定案由格式</h4>
+<div class="chat-example">
+  <div class="user-msg"><div class="avatar">律</div><div class="bubble">按民间借贷纠纷的格式整理</div></div>
+  <div class="agent-msg"><div class="avatar">助</div><div class="bubble">好的，已按民间借贷纠纷的证据要素重新整理。重点突出了：借贷合意、款项交付、还款约定、催告记录。</div></div>
+</div>
+
+<h4>10. 导出为其他格式</h4>
+<div class="chat-example">
+  <div class="user-msg"><div class="avatar">律</div><div class="bubble">导出为PDF</div></div>
+  <div class="agent-msg"><div class="avatar">助</div><div class="bubble">已导出为 PDF 格式，文件保存在 output/exports/ 目录下。</div></div>
+</div>
+
+<h3>斜杠命令</h3>
+<p>除了自然语言对话，还有几个快捷命令（以 <code>/</code> 开头）：</p>
+<div class="cmd-grid">
+  <div class="cmd-name">/help</div><div class="cmd-desc">查看帮助信息和所有可用命令</div>
+  <div class="cmd-name">/quit</div><div class="cmd-desc">退出程序</div>
+  <div class="cmd-name">/reset</div><div class="cmd-desc">重新开始对话（清除历史，但案件记忆保留）</div>
+  <div class="cmd-name">/export</div><div class="cmd-desc">快速导出当前已标记证据的清单文档</div>
+  <div class="cmd-name">/save</div><div class="cmd-desc">保存当前工作进度到文件（下次可以继续）</div>
+  <div class="cmd-name">/status</div><div class="cmd-desc">查看当前案件状态、已标记证据数量等信息</div>
+</div>
+
+<h3>快捷命令行操作</h3>
+<p>如果你不想进入对话模式，也可以直接在命令行一行搞定：</p>
+<div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code># 提取某人聊天记录
+python run.py extract --contact "张三" --start 2024-01-01 --end 2024-03-31
+
+# 直接导出证据清单
+python run.py export --contact "张三" --format docx --output ./output
+
+# 搜索联系人
+python run.py contacts --keyword "张"</code></pre></div>
+
+<!-- ==================== CH4 ==================== -->
+<div class="chapter" id="ch4">
+  <span class="chapter-num">04</span>
+  <h2>证据清单生成</h2>
+</div>
+
+<h3>生成的文档长什么样</h3>
+<p>工具生成的 Word 文档严格遵循中国法院要求的证据清单格式：</p>
+<ul>
+  <li><strong>标题</strong>：居中的"证据清单"大字（黑体）</li>
+  <li><strong>案件信息</strong>：案由、原告、被告</li>
+  <li><strong>证据表格</strong>：包含以下列 —</li>
+</ul>
+<table>
+  <thead><tr><th>序号</th><th>证据名称</th><th>证据来源</th><th>内容摘要</th><th>证明目的</th><th>页码</th><th>备注</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>微信聊天记录</td><td>微信 PC 客户端</td><td>2024-01-15 张三发送"我先借你20万"</td><td>证明借贷合意成立</td><td>1-3</td><td></td></tr>
+    <tr><td>2</td><td>微信转账记录</td><td>微信 PC 客户端</td><td>2024-01-16 向张三转账 ¥200,000</td><td>证明款项已实际交付</td><td>4</td><td></td></tr>
+    <tr><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td><td></td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><strong>页脚</strong>：提交人、日期、页码</li>
+  <li><strong>字体</strong>：正文宋体、标题黑体（符合法院公文规范）</li>
+</ul>
+
+<h3>自定义案件信息</h3>
+<p>在 <code>config.yaml</code> 中可以预设案件信息，这样每次生成就不用重复输入：</p>
+<div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code>evidence_template:
+  court_name: "上海市浦东新区人民法院"
+  case_number: "（2024）沪0115民初XXXX号"
+  lawyer_name: "李律师"
+  law_firm: "XX律师事务所"
+  plaintiff: "王某某"
+  defendant: "张某某"</code></pre></div>
+<p>当然也可以在对话中临时告诉 AI：<em>"原告是王某某，被告是张三，案号是..."</em></p>
+
+<h3>导出格式对比</h3>
+<table>
+  <thead><tr><th>格式</th><th>优点</th><th>适用场景</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Word (.docx)</strong></td><td>可编辑，格式规范</td><td>提交法院前还需要微调的情况（推荐）</td></tr>
+    <tr><td><strong>PDF</strong></td><td>不可篡改，格式固定</td><td>最终提交给法院</td></tr>
+    <tr><td><strong>HTML</strong></td><td>包含交互元素，可嵌入图片</td><td>内部查阅和归档</td></tr>
+  </tbody>
+</table>
+
+<!-- ==================== CH5 ==================== -->
+<div class="chapter" id="ch5">
+  <span class="chapter-num">05</span>
+  <h2>AI 分析功能</h2>
+</div>
+
+<h3>AI 能帮你做什么</h3>
+<ul>
+  <li><strong>自动提取关键事实</strong> — 从聊天记录中识别金额、日期、承诺、违约行为等法律要素</li>
+  <li><strong>识别争议焦点</strong> — 自动判断双方的核心分歧在哪里</li>
+  <li><strong>评估证据完整性</strong> — 告诉你证据链是否充分，哪些环节还缺证据</li>
+  <li><strong>匹配法律条文</strong> — 将事实与相关法律条文自动关联（如民法典相关条款）</li>
+  <li><strong>建议诉讼策略</strong> — 基于证据情况给出诉讼方向建议</li>
+</ul>
+
+<p>AI 分析支持多种常见案由：</p>
+<table>
+  <thead><tr><th>案由</th><th>AI 重点分析内容</th></tr></thead>
+  <tbody>
+    <tr><td>民间借贷纠纷</td><td>借贷合意、款项交付、利息约定、还款期限、催告记录</td></tr>
+    <tr><td>合同纠纷</td><td>合同成立、履行情况、违约行为、损失证据</td></tr>
+    <tr><td>劳动争议</td><td>劳动关系确认、工资支付、解除/终止合同的合法性</td></tr>
+    <tr><td>房屋买卖/租赁</td><td>合同条款、付款记录、交房/退房、违约金</td></tr>
+    <tr><td>婚姻家庭纠纷</td><td>财产分配、抚养权相关事实、过错证据</td></tr>
+  </tbody>
+</table>
+
+<h3>AI 不能做什么</h3>
+<div class="callout danger">
+  <p><strong>重要声明：AI 分析仅供参考，不能替代律师的专业判断。</strong></p>
+  <p>AI 可能存在分析不准确的情况，所有分析结果请务必人工审核后再使用。</p>
+  <p>AI 不提供法律意见，也不能作为法律依据。</p>
+  <p>建议将 AI 的分析结果作为"辅助工具"，最终的策略决策由你来做。</p>
+</div>
+
+<!-- ==================== CH6 ==================== -->
+<div class="chapter" id="ch6">
+  <span class="chapter-num">06</span>
+  <h2>常见问题</h2>
+</div>
+
+<h4>Q：运行后提示"找不到微信数据目录"</h4>
+<div class="callout tip">
+  <p><strong>解决方法：</strong></p>
+  <ul>
+    <li>确认微信 PC/Mac 版已登录并正在运行</li>
+    <li>Windows 默认路径：<code>C:\Users\你的用户名\Documents\WeChat Files\</code></li>
+    <li>Mac 默认路径：<code>~/Library/Containers/com.tencent.xinWeChat/</code></li>
+    <li>如果你修改过微信的文件保存路径，在 <code>config.yaml</code> 中手动指定 <code>wechat_dir</code></li>
+  </ul>
+</div>
+
+<h4>Q：提示"密钥提取失败"</h4>
+<div class="callout tip">
+  <p><strong>Windows：</strong>需要以管理员身份运行命令提示符。右键 cmd → "以管理员身份运行"。</p>
+  <p><strong>Mac：</strong>首次运行时系统可能会弹出"允许终端控制电脑"的权限请求，请点击允许。如果 Keychain 自动读取失败，参考第二章的手动密钥获取方法。</p>
+</div>
+
+<h4>Q：AI 分析没有响应 / 报错</h4>
+<div class="callout tip">
+  <p>请检查：</p>
+  <ul>
+    <li><code>config.yaml</code> 中的 <code>openai_api_key</code> 是否正确填写</li>
+    <li>如果用国内 AI 服务，<code>openai_base_url</code> 是否设置正确（参见附录）</li>
+    <li>网络是否正常（如果用 OpenAI 需要能访问国际网络）</li>
+    <li>API 账户是否有余额</li>
+  </ul>
+</div>
+
+<h4>Q：语音消息没有转成文字</h4>
+<div class="callout tip">
+  <p>语音转文字需要额外安装 Whisper 模型。运行以下命令：</p>
+  <div class="code-wrap"><button class="copy-btn" onclick="copyCode(this)">复制</button><pre><code>pip install openai-whisper</code></pre></div>
+  <p>首次使用时会自动下载语音识别模型（约 140MB），需要耐心等待。</p>
+</div>
+
+<h4>Q：生成的 Word 文档格式不对 / 乱码</h4>
+<div class="callout tip">
+  <p>证据清单使用宋体和黑体。如果你的电脑上没有这些字体：</p>
+  <ul>
+    <li><strong>Windows：</strong>一般自带，不需要额外安装</li>
+    <li><strong>Mac：</strong>需要安装"宋体"和"黑体"字体，或者将文档发给 Windows 电脑打开</li>
+  </ul>
+</div>
+
+<h4>Q：提示 pip 找不到 / python 找不到</h4>
+<div class="callout tip">
+  <p>这是因为 Python 没有添加到系统 PATH。</p>
+  <p><strong>Windows：</strong>卸载 Python 重新安装，这次<strong>一定要勾选 "Add Python to PATH"</strong>。</p>
+  <p><strong>Mac：</strong>尝试使用 <code>python3</code> 和 <code>pip3</code> 代替 <code>python</code> 和 <code>pip</code>。</p>
+</div>
+
+<h4>Q：安装 pysqlcipher3 失败</h4>
+<div class="callout tip">
+  <p>这个库需要系统先安装 SQLCipher 的 C 语言库。</p>
+  <p><strong>Windows：</strong>最简单的方法是使用预编译的 wheel 文件安装，或者安装 Visual Studio Build Tools。</p>
+  <p><strong>Mac：</strong>先运行 <code>brew install sqlcipher</code>，再设置环境变量（参见第二章 Mac 安装步骤）。</p>
+</div>
+
+<!-- ==================== CH7 ==================== -->
+<div class="chapter" id="ch7">
+  <span class="chapter-num">07</span>
+  <h2>配置文件详解</h2>
+</div>
+<p>配置文件 <code>config.yaml</code> 控制工具的所有行为。下面是每一项的含义：</p>
+
+<table>
+  <thead><tr><th>配置项</th><th>含义</th><th>示例值</th></tr></thead>
+  <tbody>
+    <tr><td><code>openai_api_key</code></td><td>AI 服务的密钥（必填）</td><td><code>sk-xxxxxxxx</code></td></tr>
+    <tr><td><code>openai_base_url</code></td><td>AI 服务的接口地址（国内服务需改）</td><td><code>https://api.deepseek.com/v1</code></td></tr>
+    <tr><td><code>openai_model</code></td><td>使用的 AI 模型名称</td><td><code>gpt-4o</code> 或 <code>deepseek-chat</code></td></tr>
+    <tr><td><code>wechat_dir</code></td><td>微信数据目录（留空则自动检测）</td><td><code>D:\WeChat Files\wxid_xxx\Msg</code></td></tr>
+    <tr><td><code>output_dir</code></td><td>输出文件保存位置</td><td><code>./output</code>（默认）</td></tr>
+    <tr><td><code>whisper_model</code></td><td>语音识别模型大小</td><td><code>base</code>（默认，够用）</td></tr>
+    <tr><td><code>language</code></td><td>界面语言</td><td><code>zh</code>（默认中文）</td></tr>
+    <tr><td><code>log_level</code></td><td>日志级别</td><td><code>INFO</code>（默认）</td></tr>
+  </tbody>
+</table>
+
+<h3>证据模板设置</h3>
+<table>
+  <thead><tr><th>配置项</th><th>含义</th><th>示例值</th></tr></thead>
+  <tbody>
+    <tr><td><code>court_name</code></td><td>法院名称</td><td>上海市浦东新区人民法院</td></tr>
+    <tr><td><code>case_number</code></td><td>案号</td><td>（2024）沪0115民初XXXX号</td></tr>
+    <tr><td><code>lawyer_name</code></td><td>律师姓名</td><td>李律师</td></tr>
+    <tr><td><code>law_firm</code></td><td>律师事务所</td><td>XX律师事务所</td></tr>
+    <tr><td><code>plaintiff</code></td><td>原告</td><td>王某某</td></tr>
+    <tr><td><code>defendant</code></td><td>被告</td><td>张某某</td></tr>
+  </tbody>
+</table>
+
+<!-- ==================== APPENDIX ==================== -->
+<div class="chapter" id="appendix">
+  <span class="chapter-num">&#9733;</span>
+  <h2>附录</h2>
+</div>
+
+<h3>支持的 AI 服务商配置</h3>
+<table>
+  <thead><tr><th>服务商</th><th>base_url</th><th>推荐模型</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><strong>OpenAI</strong></td><td><code>https://api.openai.com/v1</code></td><td><code>gpt-4o</code></td><td>效果最好，需国际网络</td></tr>
+    <tr><td><strong>DeepSeek</strong></td><td><code>https://api.deepseek.com/v1</code></td><td><code>deepseek-chat</code></td><td>国内直连，性价比高</td></tr>
+    <tr><td><strong>通义千问</strong></td><td><code>https://dashscope.aliyuncs.com/compatible-mode/v1</code></td><td><code>qwen-max</code></td><td>阿里云服务</td></tr>
+    <tr><td><strong>智谱 AI</strong></td><td><code>https://open.bigmodel.cn/api/paas/v4</code></td><td><code>glm-4</code></td><td>国内服务</td></tr>
+    <tr><td><strong>Moonshot (月之暗面)</strong></td><td><code>https://api.moonshot.cn/v1</code></td><td><code>moonshot-v1-8k</code></td><td>国内服务</td></tr>
+  </tbody>
+</table>
+
+<div class="callout tip">
+  <p>这些国内 AI 服务都兼容 OpenAI 的接口格式（"API 兼容"），所以只需要修改 <code>base_url</code> 和 <code>model</code> 两个配置项，其他代码不需要改动。</p>
+</div>
+
+<h3>电子证据的法律效力说明</h3>
+<p>根据《民事诉讼法》第六十六条和《最高人民法院关于民事诉讼证据的若干规定》：</p>
+<ul>
+  <li>微信聊天记录属于<strong>电子数据</strong>证据类型</li>
+  <li>作为证据使用需满足<strong>真实性、关联性、合法性</strong>三个条件</li>
+  <li>建议在条件允许时对电子证据进行<strong>公证保全</strong>，增强证明力</li>
+  <li>本工具生成的证据清单可作为证据组织的辅助材料，但不能替代公证</li>
+  <li>提交法院时建议同时保留<strong>微信原始界面的截图</strong>作为补充佐证</li>
+</ul>
+
+<div class="callout warn">
+  <p><strong>使用须知</strong>：本工具仅用于提取你自己微信账号的聊天记录。使用本工具获取、分析的数据必须合法合规，不得用于非法获取他人隐私信息。</p>
+</div>
+
+<div style="margin-top:80px;padding-top:32px;border-top:1px solid var(--ink-faint);text-align:center;color:var(--ink-muted);font-size:13px;line-height:2">
+  <p>微信证据助手 v1.0 &middot; 使用手册</p>
+  <p>如有问题或建议，欢迎反馈</p>
+</div>
+
+</div>
+</div>
+<script>
+// --- Reading progress bar ---
+const progressBar = document.getElementById('progress');
+window.addEventListener('scroll', () => {
+  const h = document.documentElement;
+  const pct = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100;
+  progressBar.style.width = Math.min(pct, 100) + '%';
+}, {passive: true});
+
+// --- Active sidebar link ---
+const sections = document.querySelectorAll('.chapter, .cover');
+const navLinks = document.querySelectorAll('.sidebar nav a');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      navLinks.forEach(a => {
+        a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, {rootMargin: '-20% 0px -70% 0px'});
+sections.forEach(s => observer.observe(s));
+
+// close sidebar on link click (mobile)
+navLinks.forEach(a => a.addEventListener('click', () => {
+  if (window.innerWidth <= 900) toggleSidebar();
+}));
+
+// --- Mobile sidebar toggle ---
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('overlay').classList.toggle('show');
+}
+
+// --- Tab switching ---
+function switchTab(btn, id) {
+  const group = btn.closest('.tab-group');
+  group.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  group.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + id).classList.add('active');
+}
+
+// --- Copy code button ---
+function copyCode(btn) {
+  const code = btn.closest('.code-wrap').querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = '已复制';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '复制'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+</script>
+</body>
+</html>

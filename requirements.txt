@@ -1,0 +1,23 @@
+# 微信证据助手 - 依赖清单
+# WeChat Evidence Agent - Dependencies
+
+# 核心依赖
+openai>=1.0
+pyyaml>=6.0
+
+# 微信数据提取
+pysqlcipher3>=1.2.0
+pymem>=1.13 ; sys_platform == "win32"  # Windows 进程内存读取
+
+# 文档生成
+python-docx>=0.8.11
+
+# 图片处理
+Pillow>=9.0
+
+# 语音处理
+openai-whisper>=20230918
+pilk>=0.2.0
+
+# OCR 文字识别
+paddleocr>=2.7.0

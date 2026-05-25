@@ -1,0 +1,21 @@
+openai_api_key: ""
+openai_base_url: "https://api.deepseek.com"
+openai_model: "deepseek-chat"
+
+wechat_dir: null
+output_dir: "./output"
+whisper_model: "base"
+language: "zh"
+
+evidence_template:
+  court_name: ""
+  case_number: ""
+  lawyer_name: ""
+  law_firm: ""
+  plaintiff: ""
+  defendant: ""
+  notary_office: ""
+
+max_concurrent_requests: 5
+request_timeout: 120
+log_level: "INFO"

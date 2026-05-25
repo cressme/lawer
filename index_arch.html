@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微信证据助手 - WeChat Evidence Agent</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: #0a0b0f;
+  --bg-secondary: #111318;
+  --bg-card: #161820;
+  --bg-elevated: #1c1e28;
+  --border: #2a2d3a;
+  --border-accent: #3d4155;
+  --text-primary: #e8e6e3;
+  --text-secondary: #9a97a0;
+  --text-muted: #5c5a63;
+  --accent-gold: #c9a84c;
+  --accent-gold-dim: #8a7233;
+  --accent-blue: #4a7dbd;
+  --accent-cyan: #5bb8c4;
+  --accent-green: #5aad72;
+  --accent-red: #c45b5b;
+  --accent-purple: #8b6db5;
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: var(--border-accent) var(--bg-primary); }
+
+body {
+  font-family: 'Noto Sans SC', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.7;
+  overflow-x: hidden;
+}
+
+.noise-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 9999; opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.hero {
+  position: relative; min-height: 100vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; padding: 60px 40px; overflow: hidden;
+}
+.hero::before {
+  content: ''; position: absolute; top: -200px; left: 50%; transform: translateX(-50%);
+  width: 800px; height: 800px;
+  background: radial-gradient(ellipse, rgba(201,168,76,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-grid {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background-image: linear-gradient(rgba(201,168,76,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201,168,76,0.03) 1px, transparent 1px);
+  background-size: 80px 80px;
+  mask-image: radial-gradient(ellipse 60% 50% at 50% 50%, black, transparent);
+}
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px; padding: 6px 18px;
+  border: 1px solid var(--accent-gold-dim); border-radius: 100px;
+  font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--accent-gold); margin-bottom: 40px;
+  opacity: 0; animation: fadeUp 0.8s ease 0.2s forwards;
+}
+.hero-badge::before {
+  content: ''; width: 6px; height: 6px; background: var(--accent-gold);
+  border-radius: 50%; animation: pulse-dot 2s ease infinite;
+}
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.hero-title {
+  font-family: 'Noto Serif SC', serif; font-size: clamp(48px, 6vw, 88px);
+  font-weight: 900; text-align: center; line-height: 1.15; letter-spacing: -1px;
+  margin-bottom: 12px; opacity: 0; animation: fadeUp 0.8s ease 0.4s forwards;
+}
+.hero-title .gold {
+  background: linear-gradient(135deg, var(--accent-gold) 0%, #e8d48a 50%, var(--accent-gold) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.hero-subtitle {
+  font-family: 'JetBrains Mono', monospace; font-size: clamp(14px, 1.5vw, 18px);
+  color: var(--text-secondary); text-align: center; letter-spacing: 4px;
+  text-transform: uppercase; margin-bottom: 32px;
+  opacity: 0; animation: fadeUp 0.8s ease 0.6s forwards;
+}
+.hero-desc {
+  max-width: 640px; text-align: center; font-size: 16px;
+  color: var(--text-secondary); line-height: 1.9;
+  opacity: 0; animation: fadeUp 0.8s ease 0.8s forwards;
+}
+.hero-scroll {
+  position: absolute; bottom: 40px; display: flex; flex-direction: column;
+  align-items: center; gap: 8px; color: var(--text-muted);
+  font-size: 11px; letter-spacing: 2px;
+  opacity: 0; animation: fadeUp 0.8s ease 1.2s forwards;
+}
+.hero-scroll .line {
+  width: 1px; height: 40px;
+  background: linear-gradient(to bottom, var(--accent-gold-dim), transparent);
+  animation: scroll-line 2s ease infinite;
+}
+@keyframes scroll-line {
+  0% { transform: scaleY(0); transform-origin: top; }
+  50% { transform: scaleY(1); transform-origin: top; }
+  51% { transform: scaleY(1); transform-origin: bottom; }
+  100% { transform: scaleY(0); transform-origin: bottom; }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.section { padding: 100px 40px; max-width: 1280px; margin: 0 auto; }
+.section-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  letter-spacing: 4px; text-transform: uppercase; color: var(--accent-gold); margin-bottom: 12px;
+}
+.section-title {
+  font-family: 'Noto Serif SC', serif; font-size: clamp(28px, 3.5vw, 42px);
+  font-weight: 700; margin-bottom: 16px; line-height: 1.3;
+}
+.section-desc { color: var(--text-secondary); font-size: 15px; max-width: 600px; margin-bottom: 60px; }
+
+.arch-container { display: flex; flex-direction: column; gap: 2px; }
+.arch-layer {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 32px 36px; position: relative; overflow: hidden;
+  transition: all 0.4s ease; opacity: 0; transform: translateY(30px);
+}
+.arch-layer.visible { opacity: 1; transform: translateY(0); }
+.arch-layer:hover { border-color: var(--border-accent); background: var(--bg-elevated); }
+.arch-layer::before {
+  content: ''; position: absolute; left: 0; top: 0;
+  width: 4px; height: 100%; border-radius: 4px 0 0 4px;
+}
+.arch-layer[data-layer="1"]::before { background: var(--accent-cyan); }
+.arch-layer[data-layer="2"]::before { background: var(--accent-blue); }
+.arch-layer[data-layer="3"]::before { background: var(--accent-gold); }
+.arch-layer[data-layer="4"]::before { background: var(--accent-green); }
+.arch-layer[data-layer="5"]::before { background: var(--accent-purple); }
+.arch-layer[data-layer="1"]:hover { box-shadow: inset 0 0 60px rgba(91,184,196,0.04); }
+.arch-layer[data-layer="2"]:hover { box-shadow: inset 0 0 60px rgba(74,125,189,0.04); }
+.arch-layer[data-layer="3"]:hover { box-shadow: inset 0 0 60px rgba(201,168,76,0.06); }
+.arch-layer[data-layer="4"]:hover { box-shadow: inset 0 0 60px rgba(90,173,114,0.04); }
+.arch-layer[data-layer="5"]:hover { box-shadow: inset 0 0 60px rgba(139,109,181,0.04); }
+
+.layer-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.layer-num {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600;
+  padding: 4px 10px; border-radius: 4px; letter-spacing: 1px;
+}
+.arch-layer[data-layer="1"] .layer-num { background: rgba(91,184,196,0.15); color: var(--accent-cyan); }
+.arch-layer[data-layer="2"] .layer-num { background: rgba(74,125,189,0.15); color: var(--accent-blue); }
+.arch-layer[data-layer="3"] .layer-num { background: rgba(201,168,76,0.15); color: var(--accent-gold); }
+.arch-layer[data-layer="4"] .layer-num { background: rgba(90,173,114,0.15); color: var(--accent-green); }
+.arch-layer[data-layer="5"] .layer-num { background: rgba(139,109,181,0.15); color: var(--accent-purple); }
+
+.layer-title-text { font-family: 'Noto Serif SC', serif; font-size: 20px; font-weight: 700; }
+.layer-title-en {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  color: var(--text-muted); margin-left: auto;
+}
+.layer-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.layer-item {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px;
+  background: rgba(255,255,255,0.02); border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.03); font-size: 13px;
+  color: var(--text-secondary); transition: all 0.3s ease;
+}
+.layer-item:hover { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }
+.layer-item .icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.layer-item strong { color: var(--text-primary); font-weight: 500; }
+.layer-tech { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.tech-pill {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 3px 10px;
+  border-radius: 100px; background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06); color: var(--text-muted); letter-spacing: 0.5px;
+}
+
+.arch-connector {
+  display: flex; align-items: center; justify-content: center;
+  height: 32px; position: relative;
+}
+.arch-connector::before {
+  content: ''; width: 1px; height: 100%;
+  background: linear-gradient(to bottom, var(--border-accent), var(--border));
+}
+.arch-connector .arrow {
+  position: absolute; width: 8px; height: 8px;
+  border-right: 1px solid var(--accent-gold-dim);
+  border-bottom: 1px solid var(--accent-gold-dim);
+  transform: rotate(-135deg); top: 2px;
+}
+
+.agent-functions {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 8px; margin-top: 12px;
+}
+.fn-item {
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; padding: 10px 14px;
+  background: rgba(201,168,76,0.05); border: 1px solid rgba(201,168,76,0.1);
+  border-radius: 6px; color: var(--accent-gold); transition: all 0.3s ease;
+}
+.fn-item:hover { background: rgba(201,168,76,0.08); border-color: rgba(201,168,76,0.2); }
+.fn-item .fn-name { color: #e8d48a; }
+.fn-item .fn-desc {
+  font-family: 'Noto Sans SC', sans-serif; color: var(--text-muted);
+  font-size: 11px; margin-top: 4px;
+}
+
+.workflow-track { display: flex; flex-wrap: wrap; gap: 0; margin-top: 20px; }
+.wf-step {
+  flex: 1 1 calc(20% - 12px); min-width: 200px; position: relative;
+  padding: 24px 20px 24px 52px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: 10px; margin: 6px;
+  transition: all 0.3s ease; opacity: 0; transform: translateX(-15px);
+}
+.wf-step.visible { opacity: 1; transform: translateX(0); }
+.wf-step:hover { border-color: var(--border-accent); background: var(--bg-elevated); }
+.wf-num {
+  position: absolute; left: 16px; top: 24px;
+  font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600;
+  color: var(--accent-gold); width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(201,168,76,0.1); border-radius: 6px;
+}
+.wf-text { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.wf-text strong { color: var(--text-primary); font-weight: 500; display: block; margin-bottom: 2px; }
+
+.chat-demos { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px; }
+.chat-window {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+  overflow: hidden; transition: all 0.4s ease; opacity: 0; transform: translateY(20px);
+}
+.chat-window.visible { opacity: 1; transform: translateY(0); }
+.chat-window:hover { border-color: var(--border-accent); box-shadow: 0 8px 40px rgba(0,0,0,0.3); }
+.chat-titlebar {
+  display: flex; align-items: center; gap: 10px; padding: 14px 20px;
+  border-bottom: 1px solid var(--border); background: var(--bg-elevated);
+}
+.chat-titlebar .dots { display: flex; gap: 6px; }
+.chat-titlebar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-accent); }
+.chat-titlebar .dot:first-child { background: var(--accent-red); opacity: 0.7; }
+.chat-titlebar .dot:nth-child(2) { background: var(--accent-gold); opacity: 0.7; }
+.chat-titlebar .dot:last-child { background: var(--accent-green); opacity: 0.7; }
+.chat-titlebar .title {
+  font-size: 12px; color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace; letter-spacing: 1px;
+}
+.chat-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; min-height: 260px; }
+.chat-msg { display: flex; gap: 10px; max-width: 88%; }
+.chat-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.chat-msg.agent { align-self: flex-start; }
+.chat-avatar {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; flex-shrink: 0;
+}
+.chat-msg.user .chat-avatar { background: rgba(74,125,189,0.2); color: var(--accent-blue); }
+.chat-msg.agent .chat-avatar { background: rgba(201,168,76,0.15); color: var(--accent-gold); }
+.chat-bubble { padding: 12px 16px; border-radius: 12px; font-size: 13px; line-height: 1.75; }
+.chat-msg.user .chat-bubble {
+  background: rgba(74,125,189,0.12); border: 1px solid rgba(74,125,189,0.15);
+  color: var(--text-primary); border-top-right-radius: 4px;
+}
+.chat-msg.agent .chat-bubble {
+  background: var(--bg-elevated); border: 1px solid var(--border);
+  color: var(--text-secondary); border-top-left-radius: 4px;
+}
+.chat-bubble .highlight { color: var(--accent-gold); font-weight: 500; }
+.chat-bubble .evidence-item {
+  display: block; padding: 3px 0; padding-left: 12px;
+  border-left: 2px solid rgba(201,168,76,0.3); margin: 6px 0;
+  font-size: 12px; color: var(--text-secondary);
+}
+.chat-scene-label {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted);
+  text-align: center; padding: 10px; letter-spacing: 2px; text-transform: uppercase;
+  border-top: 1px solid var(--border); background: rgba(0,0,0,0.2);
+}
+
+.tech-footer { border-top: 1px solid var(--border); padding: 60px 40px; text-align: center; }
+.tech-stack { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px; margin-bottom: 32px; }
+.tech-tag {
+  font-family: 'JetBrains Mono', monospace; font-size: 13px; padding: 8px 20px;
+  border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text-secondary); background: var(--bg-card); transition: all 0.3s ease;
+}
+.tech-tag:hover { border-color: var(--accent-gold-dim); color: var(--accent-gold); background: rgba(201,168,76,0.05); }
+.footer-note { font-size: 12px; color: var(--text-muted); letter-spacing: 1px; }
+.section-sep { height: 1px; max-width: 1280px; margin: 0 auto; background: linear-gradient(to right, transparent, var(--border-accent), transparent); }
+
+@media (max-width: 768px) {
+  .section { padding: 60px 20px; }
+  .hero { padding: 40px 20px; }
+  .layer-header { flex-wrap: wrap; }
+  .layer-title-en { margin-left: 0; }
+  .chat-demos { grid-template-columns: 1fr; }
+  .wf-step { flex: 1 1 100%; }
+}
+</style>
+</head>
+<body>
+<div class="noise-overlay"></div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-badge">本地部署 · 数据安全 · AI 驱动 · Win/Mac</div>
+  <h1 class="hero-title">微信<span class="gold">证据</span>助手</h1>
+  <p class="hero-subtitle">WeChat Evidence Agent</p>
+  <p class="hero-desc">面向律师的智能化微信聊天记录提取与证据分析系统。支持 Windows 和 macOS 双平台，从加密数据库自动解密、提取、整理聊天内容，AI 辅助识别关键证据，一键生成符合法院要求的证据清单。</p>
+  <div class="hero-scroll">
+    <span>SCROLL</span>
+    <div class="line"></div>
+  </div>
+</section>
+
+<div class="section-sep"></div>
+
+<!-- ARCHITECTURE -->
+<section class="section">
+  <div class="section-label">System Architecture</div>
+  <h2 class="section-title">五层系统架构</h2>
+  <p class="section-desc">从底层数据采集到上层 AI 分析，每一层专注解决一个核心问题，层层递进，最终交付可用于诉讼的完整证据体系。</p>
+
+  <div class="arch-container">
+    <!-- Layer 5 - Top -->
+    <div class="arch-layer" data-layer="5">
+      <div class="layer-header">
+        <span class="layer-num">L5</span>
+        <span class="layer-title-text">AI 分析层</span>
+        <span class="layer-title-en">AI Analysis</span>
+      </div>
+      <div class="layer-items">
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>事实提取</strong>从对话中提取关键事实：金额、日期、承诺、违约行为</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>争议焦点识别</strong>自动识别双方的核心争议焦点</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>证据链分析</strong>评估证据的完整性和证明力强弱</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>法律要素匹配</strong>将事实与相关法律条文自动匹配</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>策略建议</strong>基于证据情况给出诉讼策略建议</div></div>
+      </div>
+    </div>
+
+    <div class="arch-connector"><div class="arrow"></div></div>
+
+    <!-- Layer 4 -->
+    <div class="arch-layer" data-layer="4">
+      <div class="layer-header">
+        <span class="layer-num">L4</span>
+        <span class="layer-title-text">证据生成层</span>
+        <span class="layer-title-en">Evidence Generation</span>
+      </div>
+      <div class="layer-items">
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>证据清单模板</strong>符合中国法院格式要求的 Word 模板</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>自动编号</strong>证据按类别和时间自动编号归档</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>截图生成</strong>渲染类微信界面截图，增强可信度</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>时间线图表</strong>可视化关键事件时间线</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>多格式导出</strong>Word / PDF / HTML 多格式输出</div></div>
+      </div>
+    </div>
+
+    <div class="arch-connector"><div class="arrow"></div></div>
+
+    <!-- Layer 3 - Agent Core -->
+    <div class="arch-layer" data-layer="3">
+      <div class="layer-header">
+        <span class="layer-num">L3</span>
+        <span class="layer-title-text">Agent 核心逻辑层</span>
+        <span class="layer-title-en">Agent Core — LLM Powered</span>
+      </div>
+      <div class="layer-items">
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>对话式交互</strong>律师通过自然语言与 Agent 交流</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>上下文管理</strong>维护当前案件上下文，支持多轮对话</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>记忆系统</strong>记住已分析的案件和律师偏好</div></div>
+      </div>
+      <div class="agent-functions">
+        <div class="fn-item"><span class="fn-name">extract_chat(contact, date_range)</span><div class="fn-desc">提取指定联系人的聊天记录</div></div>
+        <div class="fn-item"><span class="fn-name">search_messages(keyword, contact)</span><div class="fn-desc">搜索关键消息内容</div></div>
+        <div class="fn-item"><span class="fn-name">generate_evidence_list(chat_data, fmt)</span><div class="fn-desc">生成证据清单文档</div></div>
+        <div class="fn-item"><span class="fn-name">analyze_case(evidence)</span><div class="fn-desc">分析案件要点与证据链</div></div>
+        <div class="fn-item"><span class="fn-name">export_document(data, format)</span><div class="fn-desc">导出最终文档</div></div>
+      </div>
+    </div>
+
+    <div class="arch-connector"><div class="arrow"></div></div>
+
+    <!-- Layer 2 -->
+    <div class="arch-layer" data-layer="2">
+      <div class="layer-header">
+        <span class="layer-num">L2</span>
+        <span class="layer-title-text">数据处理层</span>
+        <span class="layer-title-en">Data Processing</span>
+      </div>
+      <div class="layer-items">
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>联系人索引</strong>按备注名 / 微信号 / 群聊筛选</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>消息解析</strong>文字 / 图片 / 语音 / 视频 / 转账 / 红包</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>时间轴重建</strong>按时间顺序重建完整对话链</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>语音转文字</strong>Whisper / 云端 ASR 将语音转文字</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>图片 OCR</strong>识别图片中的文字内容</div></div>
+      </div>
+      <div class="layer-tech">
+        <span class="tech-pill">Whisper</span>
+        <span class="tech-pill">PaddleOCR</span>
+        <span class="tech-pill">JSON Schema</span>
+      </div>
+    </div>
+
+    <div class="arch-connector"><div class="arrow"></div></div>
+
+    <!-- Layer 1 - Bottom -->
+    <div class="arch-layer" data-layer="1">
+      <div class="layer-header">
+        <span class="layer-num">L1</span>
+        <span class="layer-title-text">数据采集层</span>
+        <span class="layer-title-en">Data Extraction</span>
+      </div>
+      <div class="layer-items">
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>进程 Hook</strong>从微信进程内存提取 SQLCipher 解密密钥（Win: pymem / Mac: Keychain + lldb）</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>数据库解密</strong>解密本地 SQLite 数据库 (EnMicroMsg.db)</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>图片解密</strong>dat 文件异或解密还原为 jpg / png</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>语音提取</strong>silk 格式转 wav / mp3</div></div>
+        <div class="layer-item"><span class="icon">&#9670;</span><div><strong>视频提取</strong>原始视频文件提取与索引</div></div>
+      </div>
+      <div class="layer-tech">
+        <span class="tech-pill">Python</span>
+        <span class="tech-pill">ctypes / pymem</span>
+        <span class="tech-pill">pysqlcipher3</span>
+        <span class="tech-pill">silk-v3-decoder</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-sep"></div>
+
+<!-- WORKFLOW -->
+<section class="section">
+  <div class="section-label">Workflow</div>
+  <h2 class="section-title">端到端工作流</h2>
+  <p class="section-desc">从启动工具到导出证据清单，全流程自动化，律师只需用自然语言与 Agent 交互。</p>
+
+  <div class="workflow-track">
+    <div class="wf-step"><div class="wf-num">01</div><div class="wf-text"><strong>启动工具</strong>律师在 PC 端启动证据助手</div></div>
+    <div class="wf-step"><div class="wf-num">02</div><div class="wf-text"><strong>检测进程</strong>自动检测微信进程并提取密钥</div></div>
+    <div class="wf-step"><div class="wf-num">03</div><div class="wf-text"><strong>解密数据</strong>解密本地数据库，建立索引</div></div>
+    <div class="wf-step"><div class="wf-num">04</div><div class="wf-text"><strong>选择联系人</strong>通过对话指定目标联系人</div></div>
+    <div class="wf-step"><div class="wf-num">05</div><div class="wf-text"><strong>提取记录</strong>提取完整聊天记录与媒体</div></div>
+    <div class="wf-step"><div class="wf-num">06</div><div class="wf-text"><strong>智能处理</strong>语音转文字、图片 OCR</div></div>
+    <div class="wf-step"><div class="wf-num">07</div><div class="wf-text"><strong>AI 分析</strong>标记关键证据，评估证明力</div></div>
+    <div class="wf-step"><div class="wf-num">08</div><div class="wf-text"><strong>案件讨论</strong>律师与 AI 讨论案件方向</div></div>
+    <div class="wf-step"><div class="wf-num">09</div><div class="wf-text"><strong>生成文档</strong>生成符合法院要求的证据清单</div></div>
+    <div class="wf-step"><div class="wf-num">10</div><div class="wf-text"><strong>导出交付</strong>Word / PDF 多格式导出</div></div>
+  </div>
+</section>
+
+<div class="section-sep"></div>
+
+<!-- AGENT DEMO -->
+<section class="section">
+  <div class="section-label">Agent Demo</div>
+  <h2 class="section-title">对话式交互示例</h2>
+  <p class="section-desc">律师通过自然语言与 Agent 交流，无需学习任何技术操作。以下是三个典型工作场景。</p>
+
+  <div class="chat-demos">
+    <!-- Scene 1 -->
+    <div class="chat-window">
+      <div class="chat-titlebar">
+        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <span class="title">Evidence Agent</span>
+      </div>
+      <div class="chat-body">
+        <div class="chat-msg user">
+          <div class="chat-avatar">&#9998;</div>
+          <div class="chat-bubble">帮我提取跟张三从2024年1月到3月的所有聊天记录</div>
+        </div>
+        <div class="chat-msg agent">
+          <div class="chat-avatar">&#9830;</div>
+          <div class="chat-bubble">已找到联系人<span class="highlight">「张三」</span>（备注名），共提取消息 <span class="highlight">1,247 条</span>：<br><span class="evidence-item">文字消息 892 条</span><span class="evidence-item">图片消息 203 条</span><span class="evidence-item">语音消息 148 条</span><span class="evidence-item">转账记录 4 条</span>是否需要我先做一个概要分析？</div>
+        </div>
+      </div>
+      <div class="chat-scene-label">场景一 · 数据提取</div>
+    </div>
+
+    <!-- Scene 2 -->
+    <div class="chat-window">
+      <div class="chat-titlebar">
+        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <span class="title">Evidence Agent</span>
+      </div>
+      <div class="chat-body">
+        <div class="chat-msg user">
+          <div class="chat-avatar">&#9998;</div>
+          <div class="chat-bubble">帮我分析这些聊天记录中涉及借款的关键证据</div>
+        </div>
+        <div class="chat-msg agent">
+          <div class="chat-avatar">&#9830;</div>
+          <div class="chat-bubble">从对话中识别到以下<span class="highlight">关键证据点</span>：<span class="evidence-item">2024-01-15 张三：「我先借你20万，下个月还」</span><span class="evidence-item">2024-01-16 转账记录：向张三转账 ¥200,000</span><span class="evidence-item">2024-02-20 催款，张三回复「再宽限几天」</span><span class="evidence-item">2024-03-01 张三承认欠款并请求延期</span>这构成了比较完整的<span class="highlight">民间借贷证据链</span>。建议进一步固定转账凭证...</div>
+        </div>
+      </div>
+      <div class="chat-scene-label">场景二 · 证据分析</div>
+    </div>
+
+    <!-- Scene 3 -->
+    <div class="chat-window">
+      <div class="chat-titlebar">
+        <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <span class="title">Evidence Agent</span>
+      </div>
+      <div class="chat-body">
+        <div class="chat-msg user">
+          <div class="chat-avatar">&#9998;</div>
+          <div class="chat-bubble">生成证据清单，按照民间借贷纠纷的格式</div>
+        </div>
+        <div class="chat-msg agent">
+          <div class="chat-avatar">&#9830;</div>
+          <div class="chat-bubble">已生成证据清单，共整理证据 <span class="highlight">12 份</span>：<span class="evidence-item">证据1 — 借款合意的聊天记录</span><span class="evidence-item">证据2 — 转账凭证截图 (¥200,000)</span><span class="evidence-item">证据3 — 催款及回复记录</span><span class="evidence-item">证据4 — 承认欠款的对话记录</span><span class="evidence-item">...</span>文件已保存为<span class="highlight">「张三借贷纠纷_证据清单.docx」</span></div>
+        </div>
+      </div>
+      <div class="chat-scene-label">场景三 · 文档生成</div>
+    </div>
+  </div>
+</section>
+
+<div class="section-sep"></div>
+
+<!-- TECH FOOTER -->
+<footer class="tech-footer">
+  <div class="tech-stack">
+    <span class="tech-tag">Python 3.10+</span>
+    <span class="tech-tag">SQLCipher</span>
+    <span class="tech-tag">Whisper ASR</span>
+    <span class="tech-tag">PaddleOCR</span>
+    <span class="tech-tag">LLM API</span>
+    <span class="tech-tag">python-docx</span>
+    <span class="tech-tag">PyWxDump</span>
+    <span class="tech-tag">silk-v3-decoder</span>
+  </div>
+  <p class="footer-note">本地部署 · 数据不上传 · 隐私安全 · Windows / macOS 双平台支持</p>
+</footer>
+<script>
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry, i) => {
+    if (entry.isIntersecting) {
+      setTimeout(() => entry.target.classList.add('visible'), i * 80);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.15 });
+
+document.querySelectorAll('.arch-layer, .wf-step, .chat-window').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

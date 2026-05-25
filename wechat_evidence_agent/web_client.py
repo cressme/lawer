@@ -1,0 +1,1340 @@
+"""Local browser client for WeChat Evidence Agent."""
+
+from __future__ import annotations
+
+import json
+import logging
+import threading
+import concurrent.futures
+import webbrowser
+import re
+import mimetypes
+from email.parser import BytesParser
+from email.policy import default as email_policy
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+from urllib.parse import parse_qs, quote, urlparse
+from uuid import uuid4
+
+from .config import Config
+from .main import WeChatEvidenceApp
+from .tools_center import generate_image_evidence_docx, get_tool_definitions
+
+logger = logging.getLogger(__name__)
+
+
+HTML = r"""<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>微信证据助手</title>
+<style>
+:root {
+  --bg: #0a0b0f;
+  --panel: #111318;
+  --panel-2: #161820;
+  --line: #2a2d3a;
+  --line-2: #3d4155;
+  --text: #e8e6e3;
+  --muted: #9a97a0;
+  --faint: #68656e;
+  --gold: #c9a84c;
+  --gold-2: #e8d48a;
+  --cyan: #5bb8c4;
+  --green: #5aad72;
+  --red: #c45b5b;
+}
+* { box-sizing: border-box; }
+.hidden { display: none !important; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 520px at 20% -10%, rgba(201,168,76,.10), transparent 60%),
+    linear-gradient(rgba(201,168,76,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201,168,76,.025) 1px, transparent 1px),
+    var(--bg);
+  background-size: auto, 72px 72px, 72px 72px, auto;
+  color: var(--text);
+  font-family: "Microsoft YaHei UI", "Noto Sans SC", system-ui, sans-serif;
+}
+button, input, textarea, select { font: inherit; }
+.app { display: grid; grid-template-columns: 340px minmax(0, 1fr); height: 100vh; }
+.side {
+  border-right: 1px solid var(--line);
+  background: rgba(17,19,24,.92);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  overflow: hidden;
+}
+.brand { padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.eyebrow {
+  color: var(--gold);
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.brand h1 {
+  margin: 0;
+  font-family: Georgia, "SimSun", serif;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.brand p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.status-grid { display: grid; gap: 10px; }
+.status-card {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 13px 14px;
+  min-width: 0;
+}
+.label { color: var(--faint); font-size: 12px; margin-bottom: 5px; }
+.value {
+  color: var(--text);
+  font-size: 14px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#wechatDir {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.55;
+}
+.ok { color: var(--green); }
+.warn { color: var(--gold); }
+.bad { color: var(--red); }
+.actions { display: grid; gap: 9px; margin-top: auto; }
+.main-nav {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 4px;
+}
+.nav-btn {
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.025);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 11px 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.nav-btn:hover { border-color: var(--line-2); color: var(--text); }
+.nav-btn.active {
+  border-color: rgba(201,168,76,.62);
+  background: rgba(201,168,76,.11);
+  color: var(--text);
+}
+.btn {
+  border: 1px solid var(--line-2);
+  background: rgba(255,255,255,.035);
+  color: var(--text);
+  border-radius: 7px;
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  justify-content: center;
+}
+.btn:hover { border-color: var(--gold); background: rgba(201,168,76,.08); }
+.btn:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+.btn.primary {
+  background: linear-gradient(135deg, rgba(201,168,76,.95), rgba(232,212,138,.92));
+  border-color: rgba(232,212,138,.8);
+  color: #17130a;
+  font-weight: 700;
+}
+.btn.ghost { justify-content: flex-start; }
+.main { min-width: 0; min-height: 0; }
+.workspace { height: 100vh; min-width: 0; min-height: 0; }
+.workspace.hidden { display: none; }
+.case-workspace { display: grid; grid-template-rows: auto 1fr auto; }
+.tools-workspace { display: grid; grid-template-rows: auto 1fr; }
+.topbar {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(10,11,15,.72);
+}
+.topbar h2 { margin: 0; font-size: 18px; font-weight: 650; }
+.topbar span { color: var(--muted); font-size: 13px; }
+.chat {
+  overflow: auto;
+  padding: 26px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.message { width: min(820px, 100%); display: grid; gap: 7px; }
+.message.user { align-self: flex-end; }
+.meta { font-size: 12px; color: var(--faint); }
+.bubble {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  background: rgba(22,24,32,.92);
+}
+.previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.preview-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255,255,255,.03);
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+.preview-card:hover { border-color: rgba(232,212,138,.65); }
+.preview-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: #0d0f14;
+}
+.preview-caption {
+  padding: 7px 8px;
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preview-placeholder {
+  display: grid;
+  place-items: center;
+  min-height: 118px;
+  padding: 12px;
+  color: var(--gold-2);
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  background: rgba(201,168,76,.06);
+}
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(0,0,0,.78);
+}
+.image-lightbox.open { display: flex; }
+.image-lightbox-panel {
+  width: min(1180px, 100%);
+  height: min(820px, 92vh);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: #090a0d;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  box-shadow: 0 26px 90px rgba(0,0,0,.62);
+  overflow: hidden;
+}
+.image-lightbox-head,
+.image-lightbox-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+.image-lightbox-foot { border-top: 1px solid var(--line); border-bottom: 0; }
+.image-title {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.image-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 18px 64px;
+}
+.image-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.image-nav,
+.image-close {
+  border: 1px solid var(--line-2);
+  background: rgba(255,255,255,.06);
+  color: var(--text);
+  border-radius: 7px;
+  cursor: pointer;
+}
+.image-close { width: 34px; height: 34px; }
+.image-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 54px;
+  font-size: 26px;
+}
+.image-nav:hover,
+.image-close:hover { border-color: var(--gold); background: rgba(201,168,76,.12); }
+.image-prev { left: 14px; }
+.image-next { right: 14px; }
+.image-counter { color: var(--gold-2); white-space: nowrap; }
+.user .bubble {
+  background: rgba(201,168,76,.12);
+  border-color: rgba(201,168,76,.32);
+}
+.system .bubble {
+  border-color: rgba(91,184,196,.25);
+  background: rgba(91,184,196,.06);
+}
+.composer {
+  border-top: 1px solid var(--line);
+  padding: 18px 28px 22px;
+  background: rgba(10,11,15,.88);
+}
+.composer-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px;
+  gap: 12px;
+  align-items: end;
+}
+textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 54px;
+  max-height: 170px;
+  resize: vertical;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 13px 14px;
+  outline: none;
+}
+textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,.10); }
+.hint { margin-top: 8px; color: var(--faint); font-size: 12px; }
+.tools-content {
+  overflow: auto;
+  padding: 26px 28px;
+}
+.tools-home { display: grid; gap: 18px; max-width: 980px; }
+.section-title { display: grid; gap: 6px; }
+.section-title h3 { margin: 0; font-size: 18px; }
+.section-title p { margin: 0; color: var(--muted); line-height: 1.7; }
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 14px;
+}
+.tool-card,
+.tool-panel,
+.tool-result {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(22,24,32,.86);
+}
+.tool-card {
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+.tool-card h4 { margin: 0; font-size: 16px; }
+.tool-card p { margin: 0; color: var(--muted); line-height: 1.65; font-size: 13px; }
+.tool-tag { color: var(--gold-2); font-size: 12px; }
+.tool-detail { max-width: 980px; display: grid; gap: 16px; }
+.tool-detail.hidden { display: none; }
+.tool-panel { padding: 16px; display: grid; gap: 15px; }
+.upload-box {
+  border: 1px dashed var(--line-2);
+  border-radius: 8px;
+  padding: 18px;
+  display: grid;
+  gap: 10px;
+  background: rgba(255,255,255,.02);
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(2, 160px);
+  gap: 12px;
+  align-items: end;
+}
+.check-row {
+  min-height: 41px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.check-row input { width: 16px; height: 16px; }
+.file-list {
+  max-height: 210px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+}
+.file-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.file-item span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.tool-result { padding: 14px; color: var(--muted); line-height: 1.75; display: none; }
+.tool-result.open { display: block; }
+.tool-result a { color: var(--gold-2); text-decoration: none; }
+.tool-result a:hover { text-decoration: underline; }
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.62);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal {
+  width: min(620px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(0,0,0,.55);
+}
+.modal header, .modal footer { padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.modal footer { border-top: 1px solid var(--line); border-bottom: 0; display: flex; justify-content: flex-end; gap: 10px; }
+.modal h3 { margin: 0; font-size: 17px; }
+.modal-body { padding: 18px 20px; display: grid; gap: 14px; }
+.field { display: grid; gap: 7px; }
+.field label { color: var(--muted); font-size: 13px; }
+.field input, .field select {
+  border: 1px solid var(--line-2);
+  border-radius: 7px;
+  background: #0d0f14;
+  color: var(--text);
+  padding: 10px 11px;
+  outline: none;
+}
+.field input:focus, .field select:focus { border-color: var(--gold); }
+@media (max-width: 860px) {
+  .app { grid-template-columns: 1fr; }
+  .side { display: none; }
+  .topbar { padding: 0 18px; }
+  .chat, .composer { padding-left: 18px; padding-right: 18px; }
+  .tools-content { padding: 18px; }
+  .form-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <section class="brand">
+      <div class="eyebrow">WeChat Evidence Agent</div>
+      <h1>微信证据助手</h1>
+      <p>面向律师的微信电子证据提取、分析与文书生成工作台。</p>
+    </section>
+    <section class="status-grid">
+      <div class="status-card">
+        <div class="label">模型</div>
+        <div class="value" id="model">-</div>
+      </div>
+      <div class="status-card">
+        <div class="label">API 配置</div>
+        <div class="value" id="apiStatus">-</div>
+      </div>
+      <div class="status-card">
+        <div class="label">微信数据目录</div>
+        <div class="value" id="wechatDir">-</div>
+      </div>
+    </section>
+    <section class="main-nav">
+      <button class="nav-btn active" id="navCase" onclick="showWorkspace('case')">案件工作台</button>
+      <button class="nav-btn" id="navTools" onclick="showWorkspace('tools')">常用工具</button>
+    </section>
+    <section class="actions">
+      <button class="btn ghost" onclick="openConfig()">⚙ 配置大模型</button>
+      <button class="btn ghost" onclick="openDir()">⌁ 设置微信目录</button>
+      <button class="btn ghost" onclick="resetChat()">↺ 重置对话</button>
+      <button class="btn ghost" onclick="sendQuick('帮我列出联系人')">☷ 列出联系人</button>
+      <button class="btn ghost" onclick="sendQuick('帮我分析当前案件的证据链')">§ 分析证据链</button>
+    </section>
+  </aside>
+  <main class="main">
+    <section class="workspace case-workspace" id="caseWorkspace">
+      <header class="topbar">
+        <div>
+          <h2>案件工作台</h2>
+          <span>自然语言提取聊天、标记证据、生成材料</span>
+        </div>
+        <button class="btn" onclick="refreshStatus()">刷新状态</button>
+      </header>
+      <section class="chat" id="chat">
+        <article class="message system">
+          <div class="meta">系统</div>
+          <div class="bubble">您好，我是微信证据助手。请描述案件事实、联系人备注名或需要提取的聊天范围。建议先在左侧完成大模型和微信目录配置。</div>
+        </article>
+      </section>
+      <section class="composer">
+        <div class="composer-inner">
+          <textarea id="input" placeholder="例如：帮我查一下本地跟蔚青的聊天，并提取涉及借款的消息"></textarea>
+          <button class="btn primary" id="send" onclick="sendMessage()">发送</button>
+        </div>
+        <div class="hint">Enter 发送，Shift + Enter 换行。普通用户界面会隐藏内部 traceback，仅展示可操作的错误说明。</div>
+      </section>
+    </section>
+    <section class="workspace tools-workspace hidden" id="toolsWorkspace">
+      <header class="topbar">
+        <div>
+          <h2>常用工具</h2>
+          <span>批量文件处理、证据文档排版与材料整理</span>
+        </div>
+        <button class="btn" onclick="showWorkspace('case')">返回案件工作台</button>
+      </header>
+      <section class="tools-content">
+        <div class="tools-home" id="toolsHome">
+          <div class="section-title">
+            <h3>工具中心</h3>
+            <p>第一期先提供确定性文件工具，后续会继续加入 PDF、哈希校验、证据目录等常用律师工作流。</p>
+          </div>
+          <div class="tool-grid" id="toolGrid">
+            <article class="tool-card">
+              <div class="tool-tag">证据文档 · Word</div>
+              <h4>图片证据排版</h4>
+              <p>导入多张聊天截图、转账截图或照片，按 A4 一页四张生成可编辑 Word。</p>
+              <button class="btn primary" onclick="openImageDocxTool()">打开工具</button>
+            </article>
+          </div>
+        </div>
+        <div class="tool-detail hidden" id="imageDocxTool">
+          <div class="section-title">
+            <h3>图片证据排版</h3>
+            <p>支持 jpg、jpeg、png、bmp、webp，单次最多处理 50 张，按导入顺序一页四张排版。</p>
+          </div>
+          <section class="tool-panel">
+            <div class="upload-box">
+              <input id="imageDocxFiles" type="file" accept=".jpg,.jpeg,.png,.bmp,.webp,image/*" multiple hidden onchange="imageFilesChanged()">
+              <div class="tool-actions">
+                <button class="btn primary" onclick="document.getElementById('imageDocxFiles').click()">选择图片</button>
+                <button class="btn" onclick="clearImageDocxTool()">清空</button>
+              </div>
+              <div class="hint" id="imageDocxCount">尚未选择图片。</div>
+              <div class="file-list" id="imageDocxFileList"></div>
+            </div>
+            <div class="form-grid">
+              <div class="field">
+                <label>文档标题</label>
+                <input id="imageDocxTitle" value="图片证据材料">
+              </div>
+              <label class="check-row"><input id="imageDocxShowIndex" type="checkbox" checked> 显示序号</label>
+              <label class="check-row"><input id="imageDocxShowFilename" type="checkbox" checked> 显示文件名</label>
+            </div>
+            <div class="tool-actions">
+              <button class="btn primary" id="imageDocxRun" onclick="runImageDocxTool()">生成 Word</button>
+              <button class="btn" onclick="showToolsHome()">返回工具列表</button>
+            </div>
+            <div class="tool-result" id="imageDocxResult"></div>
+          </section>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="configModal">
+  <section class="modal">
+    <header><h3>大模型配置</h3></header>
+    <div class="modal-body">
+      <div class="field">
+        <label>服务商</label>
+        <select id="provider" onchange="providerChanged()">
+          <option value="deepseek">DeepSeek</option>
+          <option value="openai">OpenAI</option>
+          <option value="custom">自定义 OpenAI 兼容接口</option>
+        </select>
+      </div>
+      <div class="field"><label>Base URL</label><input id="baseUrl" placeholder="https://api.deepseek.com"></div>
+      <div class="field"><label>模型名称</label><input id="modelInput" placeholder="deepseek-chat"></div>
+      <div class="field"><label>API Key</label><input id="apiKey" type="password" placeholder="留空则保持不变"></div>
+    </div>
+    <footer>
+      <button class="btn" onclick="closeModals()">取消</button>
+      <button class="btn primary" onclick="saveConfig()">保存</button>
+    </footer>
+  </section>
+</div>
+
+<div class="modal-backdrop" id="dirModal">
+  <section class="modal">
+    <header><h3>微信数据目录</h3></header>
+    <div class="modal-body">
+      <div class="field">
+        <label>目录路径</label>
+        <input id="dirInput" placeholder="C:\Users\用户名\Documents\xwechat_files">
+      </div>
+      <div class="hint">可以填 xwechat_files 根目录，也可以填具体 wxid 账号目录。</div>
+    </div>
+    <footer>
+      <button class="btn" onclick="closeModals()">取消</button>
+      <button class="btn primary" onclick="saveDir()">保存</button>
+    </footer>
+  </section>
+</div>
+
+<script>
+const chat = document.getElementById("chat");
+const input = document.getElementById("input");
+let statusCache = {};
+let lightboxImages = [];
+let lightboxIndex = 0;
+let selectedImageDocxFiles = [];
+
+function showWorkspace(name) {
+  document.getElementById("caseWorkspace").classList.toggle("hidden", name !== "case");
+  document.getElementById("toolsWorkspace").classList.toggle("hidden", name !== "tools");
+  document.getElementById("navCase").classList.toggle("active", name === "case");
+  document.getElementById("navTools").classList.toggle("active", name === "tools");
+}
+
+function openImageDocxTool() {
+  showWorkspace("tools");
+  document.getElementById("toolsHome").classList.add("hidden");
+  document.getElementById("imageDocxTool").classList.remove("hidden");
+}
+
+function showToolsHome() {
+  document.getElementById("imageDocxTool").classList.add("hidden");
+  document.getElementById("toolsHome").classList.remove("hidden");
+}
+
+function imageFilesChanged() {
+  const inputEl = document.getElementById("imageDocxFiles");
+  selectedImageDocxFiles = Array.from(inputEl.files || []);
+  renderImageDocxFiles();
+}
+
+function renderImageDocxFiles() {
+  const count = document.getElementById("imageDocxCount");
+  const list = document.getElementById("imageDocxFileList");
+  list.innerHTML = "";
+  if (!selectedImageDocxFiles.length) {
+    count.textContent = "尚未选择图片。";
+    return;
+  }
+  count.textContent = `已选择 ${selectedImageDocxFiles.length} 张图片，超过 50 张时只处理前 50 张。`;
+  selectedImageDocxFiles.slice(0, 80).forEach((file, index) => {
+    const item = document.createElement("div");
+    item.className = "file-item";
+    const name = document.createElement("span");
+    name.textContent = `${index + 1}. ${file.name}`;
+    const size = document.createElement("span");
+    size.textContent = formatBytes(file.size);
+    item.append(name, size);
+    list.append(item);
+  });
+}
+
+function clearImageDocxTool() {
+  selectedImageDocxFiles = [];
+  document.getElementById("imageDocxFiles").value = "";
+  document.getElementById("imageDocxResult").classList.remove("open");
+  document.getElementById("imageDocxResult").innerHTML = "";
+  renderImageDocxFiles();
+}
+
+async function runImageDocxTool() {
+  if (!selectedImageDocxFiles.length) {
+    showToolResult("请先选择需要排版的图片。", false);
+    return;
+  }
+  const button = document.getElementById("imageDocxRun");
+  button.disabled = true;
+  button.textContent = "正在生成...";
+  showToolResult("正在生成 Word，请稍候。", true);
+  try {
+    const form = new FormData();
+    selectedImageDocxFiles.forEach(file => form.append("images", file, file.name));
+    form.append("title", document.getElementById("imageDocxTitle").value.trim() || "图片证据材料");
+    form.append("show_index", document.getElementById("imageDocxShowIndex").checked ? "true" : "false");
+    form.append("show_filename", document.getElementById("imageDocxShowFilename").checked ? "true" : "false");
+
+    const res = await fetch("/api/tools/image-evidence-docx", {method: "POST", body: form});
+    const data = await res.json();
+    if (!res.ok || data.ok === false) throw new Error(data.error || "生成失败");
+    const fileUrl = `/api/file?path=${encodeURIComponent(data.file_path)}`;
+    const skipped = (data.skipped || []).map(item => `<div>${escapeHtml(item.file || "")}：${escapeHtml(item.reason || "")}</div>`).join("");
+    showToolResult(`
+      <div class="ok">Word 已生成：${data.image_count} 张图片，${data.page_count} 页。</div>
+      <div><a href="${fileUrl}" target="_blank" rel="noreferrer">打开 / 下载 Word 文件</a></div>
+      <div>${escapeHtml(data.file_path)}</div>
+      ${skipped ? `<div class="warn">跳过文件：</div>${skipped}` : ""}
+    `, true);
+  } catch (err) {
+    showToolResult(escapeHtml(err.message), false);
+  } finally {
+    button.disabled = false;
+    button.textContent = "生成 Word";
+  }
+}
+
+function showToolResult(html, ok) {
+  const result = document.getElementById("imageDocxResult");
+  result.classList.add("open");
+  result.classList.toggle("bad", !ok);
+  result.innerHTML = html;
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / Math.pow(1024, index)).toFixed(index ? 1 : 0)} ${units[index]}`;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[char]));
+}
+
+function addMessage(role, text) {
+  const item = document.createElement("article");
+  item.className = "message " + role;
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = role === "user" ? "律师" : role === "system" ? "系统" : "助手";
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+  item.append(meta, bubble);
+  chat.append(item);
+  chat.scrollTop = chat.scrollHeight;
+  return item;
+}
+
+function renderImages(item, images) {
+  if (!images || !images.length) return;
+  const previewImages = images.filter(image => image && image.url);
+  const wrap = document.createElement("div");
+  wrap.className = "previews";
+  images.forEach(image => {
+    const card = document.createElement(image.url ? "button" : "div");
+    card.className = "preview-card";
+    if (image.url) {
+      card.type = "button";
+      card.addEventListener("click", () => {
+        const index = previewImages.findIndex(candidate => candidate.url === image.url);
+        openLightbox(previewImages, Math.max(index, 0));
+      });
+      const img = document.createElement("img");
+      img.src = image.url;
+      img.alt = image.name || "image evidence";
+      card.append(img);
+    } else {
+      const box = document.createElement("div");
+      box.className = "preview-placeholder";
+      box.textContent = image.error || image.status || "图片待解密";
+      card.append(box);
+    }
+    const caption = document.createElement("div");
+    caption.className = "preview-caption";
+    caption.textContent = image.name || image.path || "图片证据";
+    card.append(caption);
+    wrap.append(card);
+  });
+  item.append(wrap);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function ensureLightbox() {
+  let box = document.getElementById("imageLightbox");
+  if (box) return box;
+  box = document.createElement("div");
+  box.id = "imageLightbox";
+  box.className = "image-lightbox";
+  box.innerHTML = `
+    <section class="image-lightbox-panel" role="dialog" aria-modal="true" aria-label="图片预览">
+      <div class="image-lightbox-head">
+        <div class="image-title" id="imageLightboxTitle">图片证据</div>
+        <button class="image-close" type="button" aria-label="关闭" onclick="closeLightbox()">X</button>
+      </div>
+      <div class="image-stage">
+        <button class="image-nav image-prev" type="button" aria-label="上一张" onclick="moveLightbox(-1)">&lt;</button>
+        <img id="imageLightboxImg" alt="图片证据">
+        <button class="image-nav image-next" type="button" aria-label="下一张" onclick="moveLightbox(1)">&gt;</button>
+      </div>
+      <div class="image-lightbox-foot">
+        <div class="image-counter" id="imageLightboxCounter"></div>
+        <div id="imageLightboxPath"></div>
+      </div>
+    </section>`;
+  box.addEventListener("click", event => {
+    if (event.target === box) closeLightbox();
+  });
+  document.body.append(box);
+  return box;
+}
+
+function openLightbox(images, index) {
+  lightboxImages = images || [];
+  lightboxIndex = index || 0;
+  ensureLightbox().classList.add("open");
+  showLightbox(lightboxIndex);
+}
+
+function showLightbox(index) {
+  if (!lightboxImages.length) return;
+  lightboxIndex = (index + lightboxImages.length) % lightboxImages.length;
+  const image = lightboxImages[lightboxIndex];
+  document.getElementById("imageLightboxImg").src = image.url;
+  document.getElementById("imageLightboxTitle").textContent = image.name || "图片证据";
+  document.getElementById("imageLightboxCounter").textContent = `${lightboxIndex + 1} / ${lightboxImages.length}`;
+  document.getElementById("imageLightboxPath").textContent = image.path || "";
+}
+
+function moveLightbox(delta) {
+  showLightbox(lightboxIndex + delta);
+}
+
+function closeLightbox() {
+  const box = document.getElementById("imageLightbox");
+  if (box) box.classList.remove("open");
+}
+
+async function api(path, payload) {
+  const options = payload === undefined ? {} : {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  };
+  const res = await fetch(path, options);
+  const data = await res.json();
+  if (!res.ok || data.ok === false) throw new Error(data.error || "请求失败");
+  return data;
+}
+
+async function refreshStatus() {
+  try {
+    statusCache = await api("/api/status");
+    document.getElementById("model").textContent = statusCache.model || "-";
+    document.getElementById("apiStatus").textContent = statusCache.api_key_configured ? "已配置" : "未配置";
+    document.getElementById("apiStatus").className = "value " + (statusCache.api_key_configured ? "ok" : "warn");
+    document.getElementById("wechatDir").textContent = statusCache.wechat_dir || "未设置";
+  } catch (err) {
+    addMessage("system", err.message);
+  }
+}
+
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  addMessage("user", text);
+  const pending = addMessage("assistant", "正在处理...");
+  document.getElementById("send").disabled = true;
+  try {
+    const data = await api("/api/chat", {message: text});
+    pending.querySelector(".bubble").textContent = data.response;
+    renderImages(pending, data.images);
+  } catch (err) {
+    pending.querySelector(".bubble").textContent = err.message;
+  } finally {
+    document.getElementById("send").disabled = false;
+    chat.scrollTop = chat.scrollHeight;
+  }
+}
+
+function sendQuick(text) {
+  input.value = text;
+  sendMessage();
+}
+
+async function resetChat() {
+  await api("/api/reset", {});
+  addMessage("system", "对话已重置，案件记忆保留。");
+}
+
+function openConfig() {
+  document.getElementById("provider").value = statusCache.base_url === "" || statusCache.base_url === null ? "openai" : (statusCache.base_url === "https://api.deepseek.com" ? "deepseek" : "custom");
+  document.getElementById("baseUrl").value = statusCache.base_url || "";
+  document.getElementById("modelInput").value = statusCache.model || "deepseek-chat";
+  document.getElementById("apiKey").value = "";
+  document.getElementById("configModal").style.display = "flex";
+}
+
+function openDir() {
+  document.getElementById("dirInput").value = statusCache.wechat_dir || "";
+  document.getElementById("dirModal").style.display = "flex";
+}
+
+function closeModals() {
+  document.querySelectorAll(".modal-backdrop").forEach(m => m.style.display = "none");
+}
+
+function providerChanged() {
+  const p = document.getElementById("provider").value;
+  if (p === "deepseek") {
+    document.getElementById("baseUrl").value = "https://api.deepseek.com";
+    document.getElementById("modelInput").value = "deepseek-chat";
+  } else if (p === "openai") {
+    document.getElementById("baseUrl").value = "";
+    document.getElementById("modelInput").value = "gpt-4o";
+  }
+}
+
+async function saveConfig() {
+  try {
+    await api("/api/config", {
+      base_url: document.getElementById("baseUrl").value.trim(),
+      model: document.getElementById("modelInput").value.trim(),
+      api_key: document.getElementById("apiKey").value.trim()
+    });
+    closeModals();
+    await refreshStatus();
+    addMessage("system", "大模型配置已保存。");
+  } catch (err) {
+    addMessage("system", err.message);
+  }
+}
+
+async function saveDir() {
+  try {
+    const data = await api("/api/wechat-dir", {path: document.getElementById("dirInput").value.trim()});
+    closeModals();
+    await refreshStatus();
+    addMessage("system", "微信目录已设置为：" + data.wechat_dir);
+  } catch (err) {
+    addMessage("system", err.message);
+  }
+}
+
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+document.addEventListener("keydown", e => {
+  const box = document.getElementById("imageLightbox");
+  if (!box || !box.classList.contains("open")) return;
+  if (e.key === "Escape") closeLightbox();
+  if (e.key === "ArrowLeft") moveLightbox(-1);
+  if (e.key === "ArrowRight") moveLightbox(1);
+});
+refreshStatus();
+</script>
+</body>
+</html>
+"""
+
+
+class _ClientHandler(BaseHTTPRequestHandler):
+    app: WeChatEvidenceApp
+    config_path: Path
+    lock: threading.Lock
+
+    def log_message(self, fmt: str, *args: Any) -> None:
+        logger.info("web client: " + fmt, *args)
+
+    def _json(self, data: dict[str, Any], status: int = 200) -> None:
+        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _read_json(self) -> dict[str, Any]:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0:
+            return {}
+        raw = self.rfile.read(length).decode("utf-8")
+        return json.loads(raw) if raw else {}
+
+    def _send_file(self, path: Path) -> None:
+        resolved = path.expanduser().resolve()
+        if not resolved.is_file():
+            self._json({"ok": False, "error": "文件不存在。"}, 404)
+            return
+        content_type = mimetypes.guess_type(str(resolved))[0] or "application/octet-stream"
+        data = resolved.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path in ("/", "/index.html"):
+            body = HTML.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path == "/api/status":
+            cfg = self.app.config
+            self._json({
+                "ok": True,
+                "model": cfg.openai_model,
+                "base_url": cfg.openai_base_url,
+                "api_key_configured": bool(cfg.openai_api_key),
+                "wechat_dir": cfg.wechat_dir or "",
+            })
+            return
+        if path == "/api/tools":
+            self._json({
+                "ok": True,
+                "tools": [tool.to_public_dict() for tool in get_tool_definitions()],
+            })
+            return
+        if path == "/api/file":
+            query = parse_qs(parsed.query)
+            raw_path = (query.get("path") or [""])[0]
+            if not raw_path:
+                self._json({"ok": False, "error": "缺少文件路径。"}, 400)
+                return
+            self._send_file(Path(raw_path))
+            return
+        self._json({"ok": False, "error": "未找到该页面。"}, 404)
+
+    def do_POST(self) -> None:
+        path = urlparse(self.path).path
+        try:
+            if path == "/api/tools/image-evidence-docx":
+                with self.lock:
+                    result = self._run_image_evidence_docx_tool()
+                self._json(result, 200 if result.get("ok") else 400)
+                return
+
+            payload = self._read_json()
+            with self.lock:
+                if path == "/api/chat":
+                    message = str(payload.get("message", "")).strip()
+                    if not message:
+                        raise ValueError("请输入要发送的内容。")
+                    chat_handler = (
+                        self.app.graph_agent.chat
+                        if hasattr(self.app, "graph_agent")
+                        else self.app.agent.chat
+                    )
+                    response = _call_with_timeout(
+                        chat_handler,
+                        message,
+                        timeout=90,
+                    )
+                    self._json({
+                        "ok": True,
+                        "response": response,
+                        "images": self._collect_preview_images(),
+                    })
+                    return
+
+                if path == "/api/reset":
+                    self.app.agent.reset()
+                    if hasattr(self.app, "graph_agent"):
+                        self.app.graph_agent.reset()
+                    self._json({"ok": True})
+                    return
+
+                if path == "/api/config":
+                    self._save_config(payload)
+                    self._json({"ok": True})
+                    return
+
+                if path == "/api/wechat-dir":
+                    result = self._save_wechat_dir(payload)
+                    self._json({"ok": True, **result})
+                    return
+
+            self._json({"ok": False, "error": "未知操作。"}, 404)
+        except Exception as exc:
+            logger.exception("Web client request failed: %s", path)
+            self._json({"ok": False, "error": _friendly_error(exc)}, 400)
+
+    def _read_multipart(self) -> tuple[dict[str, str], list[dict[str, Any]]]:
+        content_type = self.headers.get("Content-Type", "")
+        if "multipart/form-data" not in content_type:
+            raise ValueError("请使用 multipart/form-data 上传图片。")
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0:
+            raise ValueError("上传内容为空。")
+        body = self.rfile.read(length)
+        raw = (
+            f"Content-Type: {content_type}\r\nMIME-Version: 1.0\r\n\r\n".encode("utf-8")
+            + body
+        )
+        message = BytesParser(policy=email_policy).parsebytes(raw)
+        fields: dict[str, str] = {}
+        files: list[dict[str, Any]] = []
+        for part in message.iter_parts():
+            name = part.get_param("name", header="content-disposition")
+            if not name:
+                continue
+            data = part.get_payload(decode=True) or b""
+            filename = part.get_filename()
+            if filename:
+                files.append({
+                    "field": name,
+                    "filename": _safe_upload_name(filename),
+                    "content": data,
+                })
+            else:
+                charset = part.get_content_charset() or "utf-8"
+                fields[name] = data.decode(charset, errors="ignore")
+        return fields, files
+
+    def _run_image_evidence_docx_tool(self) -> dict[str, Any]:
+        fields, files = self._read_multipart()
+        image_files = [file for file in files if file.get("field") == "images"]
+        if not image_files:
+            raise ValueError("请至少选择一张图片。")
+
+        output_root = Path(self.app.config.output_path) / "tools" / "image_evidence_docx"
+        upload_dir = output_root / "uploads" / uuid4().hex
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        saved_paths: list[Path] = []
+        for index, file in enumerate(image_files, start=1):
+            filename = str(file["filename"]) or f"image_{index}.jpg"
+            target = upload_dir / f"{index:03d}_{filename}"
+            target.write_bytes(file["content"])
+            saved_paths.append(target)
+
+        title = fields.get("title", "").strip() or "图片证据材料"
+        show_filename = _as_bool(fields.get("show_filename", "true"))
+        show_index = _as_bool(fields.get("show_index", "true"))
+        return generate_image_evidence_docx(
+            saved_paths,
+            title=title,
+            show_filename=show_filename,
+            show_index=show_index,
+            output_root=output_root,
+        )
+
+    def _save_config(self, payload: dict[str, Any]) -> None:
+        cfg = self.app.config
+        base_url = str(payload.get("base_url", "")).strip()
+        model = str(payload.get("model", "")).strip() or "deepseek-chat"
+        api_key = "".join(str(payload.get("api_key", "")).split())
+
+        if api_key and api_key.count("sk-") > 1:
+            raise ValueError("API Key 看起来被重复粘贴了，请只粘贴一次。")
+
+        cfg.openai_base_url = base_url or None
+        cfg.openai_model = model
+        if api_key:
+            cfg.openai_api_key = api_key
+        cfg.save_to_file(self.config_path, redact_secrets=False)
+        self.app._reload_llm_clients()
+
+    def _save_wechat_dir(self, payload: dict[str, Any]) -> dict[str, str]:
+        raw_path = str(payload.get("path", "")).strip().strip('"')
+        if not raw_path:
+            raise ValueError("请输入微信数据目录。")
+        resolved = self.app.db_extractor._resolve_wechat_dir(Path(raw_path))
+        self.app.db_extractor._wechat_dir = resolved
+        self.app.config.wechat_dir = str(resolved)
+        self.app.config.save_to_file(self.config_path, redact_secrets=False)
+        return {"wechat_dir": str(resolved)}
+
+    def _collect_preview_images(self) -> list[dict[str, str]]:
+        state = getattr(getattr(self.app, "graph_agent", None), "state", {}) or {}
+        images: list[dict[str, str]] = []
+        seen: set[str] = set()
+        max_preview_images = 80
+        for item in state.get("image_evidence") or []:
+            candidates = [item]
+            thumb = item.get("thumbnail_evidence") if isinstance(item, dict) else None
+            if isinstance(thumb, dict):
+                candidates.append(thumb)
+            for candidate in candidates:
+                decoded = str(candidate.get("decoded_path") or "")
+                if not decoded or decoded in seen:
+                    continue
+                path = Path(decoded)
+                if not path.is_file():
+                    continue
+                if not _looks_like_image(path):
+                    continue
+                seen.add(decoded)
+                images.append({
+                    "path": decoded,
+                    "name": candidate.get("source_name") or path.name,
+                    "url": f"/api/file?path={quote(decoded)}",
+                    "status": str(candidate.get("status") or ""),
+                })
+                if len(images) >= max_preview_images:
+                    return images
+            if isinstance(item, dict) and item.get("status") in {"decode_failed", "missing"} and len(images) < max_preview_images:
+                images.append({
+                    "path": str(item.get("source_path") or ""),
+                    "name": str(item.get("source_name") or "图片证据"),
+                    "url": "",
+                    "status": str(item.get("status") or ""),
+                    "error": _short_image_error(str(item.get("error") or "")),
+                })
+        return images
+
+    def _handle_local_shortcut(self, message: str) -> str | None:
+        normalized = re.sub(r"\s+", "", message)
+        if "联系人" in normalized and any(word in normalized for word in ("列出", "搜索", "查找", "找")):
+            keyword = ""
+            match = re.search(r"(?:联系人|备注|昵称)(?:里|中)?(?:叫|含|包含|是)?([\u4e00-\u9fa5A-Za-z0-9_^.-]{1,24})", normalized)
+            if match:
+                keyword = match.group(1)
+            return self.app.agent.tool_executor.execute("list_contacts", {"keyword": keyword})
+
+        if "聊天" in normalized and any(word in normalized for word in ("提取", "查看", "查", "找", "导出")):
+            patterns = [
+                r"本地(?:和|与|跟)?([\u4e00-\u9fa5A-Za-z0-9_^.-]{2,24})的聊天",
+                r"(?:和|与|跟)([\u4e00-\u9fa5A-Za-z0-9_^.-]{2,24})(?:的)?聊天",
+                r"(?:提取|查看|查一下|查|找|导出)(?:一下)?(?:我)?(?:本地)?(?:和|与|跟)?([\u4e00-\u9fa5A-Za-z0-9_^.-]{2,24})(?:的)?聊天",
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, normalized)
+                if match:
+                    contact = re.sub(r"^(我)?(本地)?(和|与|跟)", "", match.group(1))
+                    contact = re.sub(r"(的|聊天|记录|最近|部分)+$", "", contact)
+                    return self.app.agent.tool_executor.execute("extract_chat", {"contact": contact})
+        return None
+
+
+def _friendly_error(exc: Exception) -> str:
+    if isinstance(exc, TimeoutError):
+        return "当前操作耗时过长，已停止等待。请先确认微信数据库密钥配置，或缩小操作范围后重试。"
+    text = str(exc) or exc.__class__.__name__
+    if "hmac check failed" in text or "file is not a database" in text:
+        return (
+            "已找到微信数据库，但暂时无法解密。请确认微信已登录，"
+            "或提供有效的 WECHAT_DB_KEY 后重试。"
+        )
+    if "Authentication" in text or "401" in text:
+        return "大模型 API Key 校验失败，请在左侧重新配置。"
+    return text
+
+
+def _looks_like_image(path: Path) -> bool:
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            image.verify()
+        return True
+    except OSError:
+        return False
+    except Exception:
+        return False
+
+
+def _safe_upload_name(filename: str) -> str:
+    name = Path(filename).name.strip() or "image"
+    name = re.sub(r'[\\/:*?"<>|]+', "_", name)
+    name = re.sub(r"\s+", "_", name)
+    return name[:120] or "image"
+
+
+def _as_bool(value: str) -> bool:
+    return str(value).strip().lower() in {"1", "true", "yes", "on", "y"}
+
+
+def _short_image_error(error: str) -> str:
+    if "新版图片 AES Key" in error or "AES Key" in error:
+        return "已找到图片记录，但还没拿到新版微信图片密钥。请在微信里打开这张或最近一张图片后重新分析。"
+    if "cannot identify image file" in error:
+        return "已找到图片文件，但当前解码结果不是有效图片。"
+    return error[:120] if error else "图片暂不可预览"
+
+
+def _call_with_timeout(func: Any, *args: Any, timeout: int = 45) -> Any:
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(func, *args)
+    try:
+        return future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError as exc:
+        future.cancel()
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise TimeoutError() from exc
+    finally:
+        if future.done():
+            executor.shutdown(wait=False, cancel_futures=True)
+
+
+def run_web_client(
+    config: Config | None = None,
+    config_path: Path | None = None,
+    host: str = "127.0.0.1",
+    port: int = 8765,
+    open_browser: bool = True,
+) -> None:
+    """Start the local browser client."""
+    app = WeChatEvidenceApp(config=config or Config.get_default_config())
+    config_path = config_path or Path.cwd() / "config.yaml"
+
+    handler = type(
+        "WeChatEvidenceClientHandler",
+        (_ClientHandler,),
+        {"app": app, "config_path": config_path, "lock": threading.Lock()},
+    )
+
+    server = ThreadingHTTPServer((host, port), handler)
+    url = f"http://{host}:{server.server_port}/"
+    print(f"微信证据助手客户端已启动：{url}")
+    if open_browser:
+        webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n客户端已关闭。")
+    finally:
+        server.server_close()

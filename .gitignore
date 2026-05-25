@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+.venv*/
+venv/
+env/
+
+# Local configuration and secrets
+config.yaml
+*.local.yaml
+*.secret.yaml
+.env
+.env.*
+
+# Generated outputs and local artifacts
+output/
+media_output/
+build/
+dist/
+
+# Temporary probes and scratch files
+.tmp*/
+.tmp_*.py
+tmp/
+temp/
+
+# Logs
+*.log
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
