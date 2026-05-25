@@ -64,18 +64,18 @@ body {
   font-family: "Microsoft YaHei UI", "Noto Sans SC", system-ui, sans-serif;
 }
 button, input, textarea, select { font: inherit; }
-.app { display: grid; grid-template-columns: 340px minmax(0, 1fr); height: 100vh; }
+.app { display: grid; grid-template-columns: 320px minmax(0, 1fr); height: 100vh; }
 .side {
   border-right: 1px solid var(--line);
   background: rgba(17,19,24,.92);
-  padding: 22px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   min-width: 0;
   overflow: hidden;
 }
-.brand { padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.brand { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .eyebrow {
   color: var(--gold);
   font-size: 11px;
@@ -86,11 +86,80 @@ button, input, textarea, select { font: inherit; }
 .brand h1 {
   margin: 0;
   font-family: Georgia, "SimSun", serif;
-  font-size: 27px;
+  font-size: 24px;
   font-weight: 700;
   letter-spacing: 0;
 }
 .brand p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.new-chat-btn {
+  width: 100%;
+  border: 1px solid rgba(232,212,138,.58);
+  background: rgba(201,168,76,.12);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 12px 13px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+}
+.new-chat-btn:hover { border-color: var(--gold-2); background: rgba(201,168,76,.18); }
+.new-chat-btn span:last-child {
+  color: var(--gold-2);
+  font-size: 18px;
+  line-height: 1;
+}
+.side-section { display: grid; gap: 9px; min-height: 0; }
+.side-section.history-section { flex: 1; }
+.side-section-title {
+  color: var(--faint);
+  font-size: 12px;
+  letter-spacing: .3px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.chat-history {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  padding-right: 2px;
+}
+.history-item {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+}
+.history-item:hover { background: rgba(255,255,255,.035); color: var(--text); }
+.history-item.active {
+  border-color: rgba(201,168,76,.42);
+  background: rgba(201,168,76,.10);
+  color: var(--text);
+}
+.history-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.history-meta { color: var(--faint); font-size: 11px; }
+.history-empty {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--faint);
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 12px;
+}
 .status-grid { display: grid; gap: 10px; }
 .status-card {
   background: var(--panel-2);
@@ -117,7 +186,26 @@ button, input, textarea, select { font: inherit; }
 .ok { color: var(--green); }
 .warn { color: var(--gold); }
 .bad { color: var(--red); }
-.actions { display: grid; gap: 9px; margin-top: auto; }
+.side-footer {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+.side-footer .status-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.side-footer .status-card { padding: 10px 11px; }
+.side-footer .status-card.wide { grid-column: 1 / -1; }
+.quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.quick-actions .btn {
+  min-width: 0;
+  justify-content: center;
+  padding: 9px 8px;
+  font-size: 13px;
+}
+.quick-actions .btn.wide { grid-column: 1 / -1; }
 .main-nav {
   display: grid;
   gap: 8px;
@@ -178,6 +266,7 @@ button, input, textarea, select { font: inherit; }
 }
 .topbar h2 { margin: 0; font-size: 18px; font-weight: 650; }
 .topbar span { color: var(--muted); font-size: 13px; }
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
 .chat {
   overflow: auto;
   padding: 26px 28px;
@@ -323,6 +412,48 @@ button, input, textarea, select { font: inherit; }
 .system .bubble {
   border-color: rgba(91,184,196,.25);
   background: rgba(91,184,196,.06);
+}
+.welcome-panel {
+  width: min(880px, 100%);
+  margin: auto auto 0;
+  display: grid;
+  gap: 18px;
+}
+.welcome-title {
+  display: grid;
+  gap: 8px;
+}
+.welcome-title h3 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+}
+.welcome-title p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.75;
+}
+.prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.prompt-card {
+  border: 1px solid var(--line);
+  background: rgba(22,24,32,.78);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 13px 14px;
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.55;
+}
+.prompt-card:hover { border-color: rgba(232,212,138,.62); background: rgba(201,168,76,.08); }
+.prompt-card small {
+  display: block;
+  margin-top: 4px;
+  color: var(--faint);
+  font-size: 12px;
 }
 .composer {
   border-top: 1px solid var(--line);
@@ -651,6 +782,7 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
   .side { display: none; }
   .topbar { padding: 0 18px; }
   .chat, .composer { padding-left: 18px; padding-right: 18px; }
+  .prompt-grid { grid-template-columns: 1fr; }
   .tools-content { padding: 18px; overflow: auto; }
   .tool-detail { height: auto; }
   .image-docx-layout { grid-template-columns: 1fr; }
@@ -667,7 +799,14 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
       <h1>微信证据助手</h1>
       <p>面向律师的微信电子证据提取、分析与文书生成工作台。</p>
     </section>
-    <section class="status-grid">
+    <button class="new-chat-btn" onclick="newChatSession()"><span>New chat</span><span>+</span></button>
+    <section class="side-section history-section">
+      <div class="side-section-title">Chat history</div>
+      <div class="chat-history" id="chatHistory"></div>
+    </section>
+    <section class="side-section">
+      <div class="side-section-title">Status</div>
+      <section class="status-grid">
       <div class="status-card">
         <div class="label">模型</div>
         <div class="value" id="model">-</div>
@@ -681,26 +820,32 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
         <div class="value" id="wechatDir">-</div>
       </div>
     </section>
+    </section>
     <section class="main-nav">
       <button class="nav-btn active" id="navCase" onclick="showWorkspace('case')">案件工作台</button>
       <button class="nav-btn" id="navTools" onclick="showWorkspace('tools')">常用工具</button>
     </section>
-    <section class="actions">
-      <button class="btn ghost" onclick="openConfig()">⚙ 配置大模型</button>
-      <button class="btn ghost" onclick="openDir()">⌁ 设置微信目录</button>
-      <button class="btn ghost" onclick="resetChat()">↺ 重置对话</button>
-      <button class="btn ghost" onclick="sendQuick('帮我列出联系人')">☷ 列出联系人</button>
-      <button class="btn ghost" onclick="sendQuick('帮我分析当前案件的证据链')">§ 分析证据链</button>
+    <section class="side-section">
+      <div class="side-section-title">Actions</div>
+      <section class="quick-actions">
+        <button class="btn ghost" onclick="openConfig()">配置模型</button>
+        <button class="btn ghost" onclick="openDir()">微信目录</button>
+        <button class="btn ghost" onclick="sendQuick('帮我列出联系人')">联系人</button>
+        <button class="btn ghost" onclick="sendQuick('帮我分析当前案件的证据链')">证据链</button>
+        <button class="btn ghost wide" onclick="resetChat()">重置当前对话</button>
+      </section>
     </section>
   </aside>
   <main class="main">
     <section class="workspace case-workspace" id="caseWorkspace">
       <header class="topbar">
         <div>
-          <h2>案件工作台</h2>
-          <span>自然语言提取聊天、标记证据、生成材料</span>
+          <h2 id="caseTitle">新对话</h2>
+          <span id="caseSubtitle">像聊天一样提取微信材料、整理案件事实、进入案情分析</span>
         </div>
-        <button class="btn" onclick="refreshStatus()">刷新状态</button>
+        <div class="topbar-actions">
+          <button class="btn" onclick="refreshStatus()">刷新状态</button>
+        </div>
       </header>
       <section class="chat" id="chat">
         <article class="message system">
@@ -843,6 +988,156 @@ let lightboxIndex = 0;
 let selectedImageDocxFiles = [];
 let imageDocxPreviewUrls = new Map();
 let draggedImageDocxIndex = null;
+const CHAT_STORE_KEY = "wechatEvidenceChats.v1";
+let chatSessions = [];
+let currentChatId = "";
+
+function makeChatId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return "chat-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+}
+
+function createChatSession() {
+  const now = Date.now();
+  return {id: makeChatId(), title: "新对话", createdAt: now, updatedAt: now, messages: []};
+}
+
+function loadChatSessions() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(CHAT_STORE_KEY) || "[]");
+    if (Array.isArray(stored)) chatSessions = stored.filter(item => item && item.id);
+  } catch (err) {
+    chatSessions = [];
+  }
+  if (!chatSessions.length) chatSessions = [createChatSession()];
+  currentChatId = chatSessions[0].id;
+  saveChatSessions();
+  renderChatHistory();
+  renderCurrentChat();
+}
+
+function saveChatSessions() {
+  localStorage.setItem(CHAT_STORE_KEY, JSON.stringify(chatSessions.slice(0, 40)));
+}
+
+function getCurrentSession() {
+  let session = chatSessions.find(item => item.id === currentChatId);
+  if (!session) {
+    session = createChatSession();
+    chatSessions.unshift(session);
+    currentChatId = session.id;
+  }
+  return session;
+}
+
+function updateCurrentTitle(session, text) {
+  if (!session || session.title !== "新对话") return;
+  const title = String(text || "").replace(/\s+/g, " ").trim();
+  if (title) session.title = title.slice(0, 22);
+}
+
+function appendMessageToCurrent(role, text, images) {
+  const session = getCurrentSession();
+  session.messages.push({role, text, images: images || [], time: Date.now()});
+  if (role === "user") updateCurrentTitle(session, text);
+  session.updatedAt = Date.now();
+  chatSessions = [session].concat(chatSessions.filter(item => item.id !== session.id));
+  saveChatSessions();
+  renderChatHistory();
+  updateCaseHeader(session);
+}
+
+function updateCaseHeader(session) {
+  const title = document.getElementById("caseTitle");
+  const subtitle = document.getElementById("caseSubtitle");
+  if (!title || !subtitle) return;
+  title.textContent = session.title || "新对话";
+  const count = (session.messages || []).length;
+  subtitle.textContent = count ? `${count} 条上下文消息，继续围绕当前案件整理材料` : "像聊天一样提取微信材料、整理案件事实、进入案情分析";
+}
+
+function renderChatHistory() {
+  const list = document.getElementById("chatHistory");
+  if (!list) return;
+  list.innerHTML = "";
+  if (!chatSessions.length) {
+    list.innerHTML = `<div class="history-empty">暂无历史对话</div>`;
+    return;
+  }
+  chatSessions.forEach(session => {
+    const button = document.createElement("button");
+    button.className = "history-item" + (session.id === currentChatId ? " active" : "");
+    button.type = "button";
+    button.onclick = () => selectChatSession(session.id);
+    const title = document.createElement("div");
+    title.className = "history-title";
+    title.textContent = session.title || "新对话";
+    const meta = document.createElement("div");
+    meta.className = "history-meta";
+    meta.textContent = formatChatTime(session.updatedAt);
+    button.append(title, meta);
+    list.append(button);
+  });
+}
+
+function formatChatTime(value) {
+  const date = value ? new Date(value) : new Date();
+  const today = new Date();
+  if (date.toDateString() === today.toDateString()) {
+    return date.toLocaleTimeString("zh-CN", {hour: "2-digit", minute: "2-digit"});
+  }
+  return date.toLocaleDateString("zh-CN", {month: "2-digit", day: "2-digit"});
+}
+
+function welcomeHtml() {
+  return `
+    <section class="welcome-panel">
+      <div class="welcome-title">
+        <h3>今天处理哪个案件？</h3>
+        <p>你可以直接说要查谁的聊天、要证明什么事实。我会优先定位微信材料，再把文字和图片证据整理进案情分析。</p>
+      </div>
+      <div class="prompt-grid">
+        <button class="prompt-card" onclick="sendQuick('帮我查一下本地跟蔚青的聊天，并整理关键事实')">查找联系人聊天<small>按备注、昵称或微信号提取材料</small></button>
+        <button class="prompt-card" onclick="sendQuick('帮我分析当前案件的证据链，区分事实、证据和待补材料')">分析证据链<small>把聊天内容整理成律师可用结构</small></button>
+        <button class="prompt-card" onclick="sendQuick('帮我列出联系人')">列出联系人<small>确认微信目录和联系人索引是否可用</small></button>
+        <button class="prompt-card" onclick="openDir()">设置微信目录<small>首次使用先指向当前微信账号目录</small></button>
+      </div>
+    </section>`;
+}
+
+function renderCurrentChat() {
+  const session = getCurrentSession();
+  updateCaseHeader(session);
+  chat.innerHTML = "";
+  if (!session.messages.length) {
+    chat.innerHTML = welcomeHtml();
+  } else {
+    session.messages.forEach(message => addMessage(message.role, message.text, {persist: false, images: message.images || []}));
+  }
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function newChatSession() {
+  const session = createChatSession();
+  chatSessions.unshift(session);
+  currentChatId = session.id;
+  saveChatSessions();
+  renderChatHistory();
+  renderCurrentChat();
+  showWorkspace("case");
+  try {
+    await api("/api/reset", {});
+  } catch (err) {
+    addMessage("system", err.message, {persist: false});
+  }
+}
+
+function selectChatSession(id) {
+  currentChatId = id;
+  renderChatHistory();
+  renderCurrentChat();
+  showWorkspace("case");
+}
 
 function showWorkspace(name) {
   document.getElementById("caseWorkspace").classList.toggle("hidden", name !== "case");
@@ -1123,7 +1418,10 @@ function escapeHtml(value) {
   }[char]));
 }
 
-function addMessage(role, text) {
+function addMessage(role, text, options = {}) {
+  const persist = options.persist !== false;
+  const images = options.images || [];
+  if (persist && chat.querySelector(".welcome-panel")) chat.innerHTML = "";
   const item = document.createElement("article");
   item.className = "message " + role;
   const meta = document.createElement("div");
@@ -1134,6 +1432,8 @@ function addMessage(role, text) {
   bubble.textContent = text;
   item.append(meta, bubble);
   chat.append(item);
+  renderImages(item, images);
+  if (persist) appendMessageToCurrent(role, text, images);
   chat.scrollTop = chat.scrollHeight;
   return item;
 }
@@ -1256,14 +1556,16 @@ async function sendMessage() {
   if (!text) return;
   input.value = "";
   addMessage("user", text);
-  const pending = addMessage("assistant", "正在处理...");
+  const pending = addMessage("assistant", "正在处理...", {persist: false});
   document.getElementById("send").disabled = true;
   try {
     const data = await api("/api/chat", {message: text});
     pending.querySelector(".bubble").textContent = data.response;
     renderImages(pending, data.images);
+    appendMessageToCurrent("assistant", data.response, data.images || []);
   } catch (err) {
     pending.querySelector(".bubble").textContent = err.message;
+    appendMessageToCurrent("assistant", err.message, []);
   } finally {
     document.getElementById("send").disabled = false;
     chat.scrollTop = chat.scrollHeight;
@@ -1277,7 +1579,14 @@ function sendQuick(text) {
 
 async function resetChat() {
   await api("/api/reset", {});
-  addMessage("system", "对话已重置，案件记忆保留。");
+  const session = getCurrentSession();
+  session.messages = [];
+  session.title = "新对话";
+  session.updatedAt = Date.now();
+  saveChatSessions();
+  renderChatHistory();
+  renderCurrentChat();
+  addMessage("system", "对话已重置，可以重新描述案件或选择联系人。");
 }
 
 function openConfig() {
@@ -1317,9 +1626,9 @@ async function saveConfig() {
     });
     closeModals();
     await refreshStatus();
-    addMessage("system", "大模型配置已保存。");
+    addMessage("system", "大模型配置已保存。", {persist: false});
   } catch (err) {
-    addMessage("system", err.message);
+    addMessage("system", err.message, {persist: false});
   }
 }
 
@@ -1328,9 +1637,9 @@ async function saveDir() {
     const data = await api("/api/wechat-dir", {path: document.getElementById("dirInput").value.trim()});
     closeModals();
     await refreshStatus();
-    addMessage("system", "微信目录已设置为：" + data.wechat_dir);
+    addMessage("system", "微信目录已设置为：" + data.wechat_dir, {persist: false});
   } catch (err) {
-    addMessage("system", err.message);
+    addMessage("system", err.message, {persist: false});
   }
 }
 
@@ -1347,6 +1656,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "ArrowLeft") moveLightbox(-1);
   if (e.key === "ArrowRight") moveLightbox(1);
 });
+loadChatSessions();
 refreshStatus();
 </script>
 </body>
