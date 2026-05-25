@@ -117,6 +117,7 @@ button, input, textarea, select { font: inherit; }
   justify-content: space-between;
   align-items: center;
   font-weight: 700;
+  margin-bottom: -8px;
 }
 .new-chat-btn:hover { border-color: var(--gold-2); background: rgba(201,168,76,.18); }
 .new-chat-btn span:last-child {
@@ -124,8 +125,8 @@ button, input, textarea, select { font: inherit; }
   font-size: 18px;
   line-height: 1;
 }
-.side-section { display: grid; gap: 9px; min-height: 0; }
-.side-section.history-section { flex: 1; }
+.side-section { display: grid; gap: 8px; min-height: 0; }
+.side-section.history-section { flex: 1; margin-top: -2px; }
 .workspace-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -195,6 +196,17 @@ button, input, textarea, select { font: inherit; }
   line-height: 1.6;
   padding: 12px;
 }
+.history-more {
+  border: 0;
+  background: transparent;
+  color: var(--gold-2);
+  border-radius: 7px;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+.history-more:hover { background: rgba(201,168,76,.08); color: var(--text); }
 .label { color: var(--faint); font-size: 12px; margin-bottom: 5px; }
 .value {
   color: var(--text);
@@ -871,9 +883,6 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
         <span class="status-dot" id="aiStatusDot"></span>
         <span id="aiStatusText">AI 未连接</span>
       </button>
-      <button class="btn ghost" id="dirButton" onclick="openDir()" title="设置微信数据目录">
-        <span>微信目录</span>
-      </button>
     </section>
   </aside>
   <main class="main">
@@ -890,7 +899,7 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
       <section class="chat" id="chat">
         <article class="message system">
           <div class="meta">系统</div>
-          <div class="bubble">您好，我是微信证据助手。请描述案件事实、联系人备注名或需要提取的聊天范围。建议先在左侧完成大模型和微信目录配置。</div>
+          <div class="bubble">您好，我是微信证据助手。请描述案件事实、联系人备注名或需要提取的聊天范围。我会优先自动定位微信材料，找不到时再提示您选择目录。</div>
         </article>
       </section>
       <section class="composer">
@@ -898,7 +907,6 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
           <button class="btn ghost" onclick="sendQuick('帮我列出联系人')">列出联系人</button>
           <button class="btn ghost" onclick="sendQuick('帮我分析当前案件的证据链')">分析证据链</button>
           <button class="btn ghost" onclick="resetChat()">重置对话</button>
-          <button class="btn ghost" onclick="openDir()">设置微信目录</button>
         </section>
         <div class="composer-inner">
           <textarea id="input" placeholder="例如：帮我查一下本地跟蔚青的聊天，并提取涉及借款的消息"></textarea>
@@ -1035,8 +1043,10 @@ let selectedImageDocxFiles = [];
 let imageDocxPreviewUrls = new Map();
 let draggedImageDocxIndex = null;
 const CHAT_STORE_KEY = "wechatEvidenceChats.v1";
+const HISTORY_COLLAPSE_LIMIT = 5;
 let chatSessions = [];
 let currentChatId = "";
+let showAllChatHistory = false;
 
 function makeChatId() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
@@ -1110,7 +1120,8 @@ function renderChatHistory() {
     list.innerHTML = `<div class="history-empty">暂无历史对话</div>`;
     return;
   }
-  chatSessions.forEach(session => {
+  const visibleSessions = showAllChatHistory ? chatSessions : chatSessions.slice(0, HISTORY_COLLAPSE_LIMIT);
+  visibleSessions.forEach(session => {
     const button = document.createElement("button");
     button.className = "history-item" + (session.id === currentChatId ? " active" : "");
     button.type = "button";
@@ -1124,6 +1135,17 @@ function renderChatHistory() {
     button.append(title, meta);
     list.append(button);
   });
+  if (chatSessions.length > HISTORY_COLLAPSE_LIMIT) {
+    const more = document.createElement("button");
+    more.className = "history-more";
+    more.type = "button";
+    more.textContent = showAllChatHistory ? "Show less" : `Show more (${chatSessions.length - HISTORY_COLLAPSE_LIMIT})`;
+    more.onclick = () => {
+      showAllChatHistory = !showAllChatHistory;
+      renderChatHistory();
+    };
+    list.append(more);
+  }
 }
 
 function formatChatTime(value) {
@@ -1145,8 +1167,8 @@ function welcomeHtml() {
       <div class="prompt-grid">
         <button class="prompt-card" onclick="sendQuick('帮我查一下本地跟蔚青的聊天，并整理关键事实')">查找联系人聊天<small>按备注、昵称或微信号提取材料</small></button>
         <button class="prompt-card" onclick="sendQuick('帮我分析当前案件的证据链，区分事实、证据和待补材料')">分析证据链<small>把聊天内容整理成律师可用结构</small></button>
-        <button class="prompt-card" onclick="sendQuick('帮我列出联系人')">列出联系人<small>确认微信目录和联系人索引是否可用</small></button>
-        <button class="prompt-card" onclick="openDir()">设置微信目录<small>首次使用先指向当前微信账号目录</small></button>
+        <button class="prompt-card" onclick="sendQuick('帮我列出联系人')">列出联系人<small>自动定位微信目录并检查联系人索引</small></button>
+        <button class="prompt-card" onclick="sendQuick('帮我从最近的聊天里找出可用于案件分析的图片证据')">整理图片证据<small>提取聊天图片，进入证据预览和分析</small></button>
       </div>
     </section>`;
 }
@@ -1592,15 +1614,11 @@ async function refreshStatus() {
     const dot = document.getElementById("aiStatusDot");
     const text = document.getElementById("aiStatusText");
     const configButton = document.getElementById("configButton");
-    const dirButton = document.getElementById("dirButton");
     if (dot) dot.classList.toggle("ok", connected);
     if (text) text.textContent = connected ? "AI 已连接" : "AI 未连接";
     if (configButton) {
       const model = statusCache.model || "-";
       configButton.title = connected ? `AI 已连接：${model}` : "AI 未连接：点击配置模型和 API Key";
-    }
-    if (dirButton) {
-      dirButton.title = statusCache.wechat_dir ? `微信目录：${statusCache.wechat_dir}` : "微信目录未设置";
     }
   } catch (err) {
     const dot = document.getElementById("aiStatusDot");
