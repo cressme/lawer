@@ -8,11 +8,13 @@ from pathlib import Path
 import re
 from shutil import rmtree
 from typing import Any
+from uuid import uuid4
 
 from PIL import Image, ImageOps
 from docx import Document
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_ROW_HEIGHT_RULE
 from docx.shared import Cm, Pt
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -65,7 +67,8 @@ def generate_image_evidence_docx(
             table.alignment = WD_TABLE_ALIGNMENT.CENTER
             table.autofit = False
             for row in table.rows:
-                row.height = Cm(12.2)
+                row.height = Cm(11.1)
+                row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
                 for cell in row.cells:
                     cell.width = Cm(9)
                     cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
@@ -82,8 +85,8 @@ def generate_image_evidence_docx(
                 )
 
         safe_title = _safe_filename(title or "图片证据材料")
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_path = output_dir / f"{safe_title}_{timestamp}.docx"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        file_path = output_dir / f"{safe_title}_{timestamp}_{uuid4().hex[:6]}.docx"
         doc.save(file_path)
     finally:
         rmtree(work_dir, ignore_errors=True)
@@ -173,19 +176,20 @@ def _normalize_image_for_word(
 def _configure_section(section: Any) -> None:
     section.page_width = Cm(21)
     section.page_height = Cm(29.7)
-    section.top_margin = Cm(1.4)
-    section.bottom_margin = Cm(1.4)
-    section.left_margin = Cm(1.4)
-    section.right_margin = Cm(1.4)
+    section.top_margin = Cm(1.2)
+    section.bottom_margin = Cm(1.2)
+    section.left_margin = Cm(1.2)
+    section.right_margin = Cm(1.2)
 
 
 def _add_title(doc: Document, title: str) -> None:
     paragraph = doc.add_paragraph()
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.space_after = Pt(8)
+    paragraph.paragraph_format.line_spacing = 1
     run = paragraph.add_run(title or "图片证据材料")
     run.bold = True
     run.font.size = Pt(16)
-    doc.add_paragraph()
 
 
 def _fill_image_cell(
@@ -200,19 +204,29 @@ def _fill_image_cell(
     source_name = str(image_info.get("source_name") or path.name)
     width_px = float(image_info["width"])
     height_px = float(image_info["height"])
-    width_cm, height_cm = _fit_size(width_px, height_px, max_width_cm=8.3, max_height_cm=10.4)
+    width_cm, height_cm = _fit_size(width_px, height_px, max_width_cm=8.3, max_height_cm=9.1)
 
     paragraph = cell.paragraphs[0]
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.space_after = Pt(2)
+    paragraph.paragraph_format.line_spacing = 1
     run = paragraph.add_run()
     run.add_picture(str(path), width=Cm(width_cm), height=Cm(height_cm))
 
-    caption = _caption(source_name, display_index, show_filename=show_filename, show_index=show_index)
+    caption = _caption(
+        _short_filename(source_name),
+        display_index,
+        show_filename=show_filename,
+        show_index=show_index,
+    )
     if caption:
         caption_paragraph = cell.add_paragraph()
         caption_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        caption_paragraph.paragraph_format.space_before = Pt(0)
+        caption_paragraph.paragraph_format.space_after = Pt(0)
+        caption_paragraph.paragraph_format.line_spacing = 1
         caption_run = caption_paragraph.add_run(caption)
-        caption_run.font.size = Pt(9)
+        caption_run.font.size = Pt(8)
 
 
 def _fit_size(
@@ -252,3 +266,12 @@ def _safe_filename(value: str) -> str:
     cleaned = re.sub(r'[\\/:*?"<>|]+', "_", value.strip())
     cleaned = re.sub(r"\s+", "_", cleaned)
     return cleaned[:48] or "图片证据材料"
+
+
+def _short_filename(value: str, max_length: int = 42) -> str:
+    if len(value) <= max_length:
+        return value
+    path = Path(value)
+    suffix = path.suffix
+    stem_limit = max(12, max_length - len(suffix) - 3)
+    return f"{path.stem[:stem_limit]}...{suffix}"
