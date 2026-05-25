@@ -421,9 +421,10 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
   color: #1b1b1b;
   box-shadow: 0 18px 40px rgba(0,0,0,.32);
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: 1fr;
   gap: 10px;
 }
+.word-page.has-title { grid-template-rows: auto 1fr; }
 .word-page-title {
   text-align: center;
   font-weight: 700;
@@ -488,12 +489,17 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
 }
 .form-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) repeat(2, 160px);
+  grid-template-columns: 1fr;
   gap: 12px;
-  align-items: end;
+}
+.option-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
 }
 .check-row {
-  min-height: 41px;
+  min-height: 28px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -675,10 +681,12 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
               <div class="form-grid">
                 <div class="field">
                   <label>文档标题</label>
-                  <input id="imageDocxTitle" value="图片证据材料" oninput="renderImageDocxPreview()">
+                  <input id="imageDocxTitle" placeholder="可选，留空则不显示标题" oninput="renderImageDocxPreview()">
                 </div>
-                <label class="check-row"><input id="imageDocxShowIndex" type="checkbox" checked onchange="renderImageDocxPreview()"> 显示序号</label>
-                <label class="check-row"><input id="imageDocxShowFilename" type="checkbox" checked onchange="renderImageDocxPreview()"> 显示文件名</label>
+                <div class="option-row">
+                  <label class="check-row"><input id="imageDocxShowIndex" type="checkbox" checked onchange="renderImageDocxPreview()"> 显示序号</label>
+                  <label class="check-row"><input id="imageDocxShowFilename" type="checkbox" checked onchange="renderImageDocxPreview()"> 显示文件名</label>
+                </div>
               </div>
               <div class="tool-actions">
                 <button class="btn primary" id="imageDocxRun" onclick="runImageDocxTool()">生成 Word</button>
@@ -774,9 +782,9 @@ function showToolsHome() {
 
 function imageFilesChanged() {
   const inputEl = document.getElementById("imageDocxFiles");
-  imageDocxPreviewUrls.forEach(url => URL.revokeObjectURL(url));
-  imageDocxPreviewUrls = new Map();
-  selectedImageDocxFiles = Array.from(inputEl.files || []);
+  const additions = Array.from(inputEl.files || []);
+  selectedImageDocxFiles = selectedImageDocxFiles.concat(additions);
+  inputEl.value = "";
   renderImageDocxFiles();
   renderImageDocxPreview();
 }
@@ -826,15 +834,19 @@ function renderImageDocxPreview() {
     return;
   }
   count.textContent = `${files.length} 张图片，预计 ${Math.ceil(files.length / 4)} 页`;
-  const title = document.getElementById("imageDocxTitle").value.trim() || "图片证据材料";
+  const title = document.getElementById("imageDocxTitle").value.trim();
   for (let start = 0; start < files.length; start += 4) {
     const page = document.createElement("div");
     page.className = "word-page";
-    const pageTitle = document.createElement("div");
-    pageTitle.className = "word-page-title";
-    pageTitle.textContent = title;
     const grid = document.createElement("div");
     grid.className = "word-grid";
+    if (title && start === 0) {
+      page.classList.add("has-title");
+      const pageTitle = document.createElement("div");
+      pageTitle.className = "word-page-title";
+      pageTitle.textContent = title;
+      page.append(pageTitle);
+    }
     files.slice(start, start + 4).forEach((file, offset) => {
       grid.append(createPreviewSlot(file, start + offset));
     });
@@ -844,7 +856,7 @@ function renderImageDocxPreview() {
       empty.style.cursor = "default";
       grid.append(empty);
     }
-    page.append(pageTitle, grid);
+    page.append(grid);
     wrap.append(page);
   }
 }
@@ -932,7 +944,7 @@ async function runImageDocxTool() {
   try {
     const form = new FormData();
     selectedImageDocxFiles.forEach(file => form.append("images", file, file.name));
-    form.append("title", document.getElementById("imageDocxTitle").value.trim() || "图片证据材料");
+    form.append("title", document.getElementById("imageDocxTitle").value.trim());
     form.append("show_index", document.getElementById("imageDocxShowIndex").checked ? "true" : "false");
     form.append("show_filename", document.getElementById("imageDocxShowFilename").checked ? "true" : "false");
 
@@ -1419,7 +1431,7 @@ class _ClientHandler(BaseHTTPRequestHandler):
             target.write_bytes(file["content"])
             saved_paths.append(target)
 
-        title = fields.get("title", "").strip() or "图片证据材料"
+        title = fields.get("title", "").strip()
         show_filename = _as_bool(fields.get("show_filename", "true"))
         show_index = _as_bool(fields.get("show_index", "true"))
         return generate_image_evidence_docx(

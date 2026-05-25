@@ -57,7 +57,8 @@ def generate_image_evidence_docx(
         doc = Document()
         _configure_section(doc.sections[0])
 
-        _add_title(doc, title)
+        if title.strip():
+            _add_title(doc, title.strip())
 
         for page_index, start in enumerate(range(0, len(valid_images), 4)):
             if page_index > 0:
