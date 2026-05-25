@@ -391,10 +391,16 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
 .tool-panel { padding: 16px; display: grid; gap: 15px; }
 .tool-head {
   display: grid;
-  justify-items: start;
-  gap: 10px;
+  gap: 8px;
 }
-.tool-head-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.tool-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.tool-title-row h3 { margin: 0; }
+.tool-title-row .btn { padding: 8px 10px; }
 .image-docx-layout {
   display: grid;
   grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
@@ -735,11 +741,11 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
         </div>
         <div class="tool-detail hidden" id="imageDocxTool">
           <div class="tool-head">
-            <div class="tool-head-actions">
-              <button class="btn" onclick="showToolsHome()">返回工具列表</button>
-            </div>
             <div class="section-title">
-              <h3>图片证据排版</h3>
+              <div class="tool-title-row">
+                <button class="btn" onclick="showToolsHome()">返回</button>
+                <h3>图片证据排版</h3>
+              </div>
               <p>支持 jpg、jpeg、png、bmp、webp，单次最多处理 50 张。右侧预览即 Word 中的一页四张排列，可拖拽调整顺序。</p>
             </div>
           </div>
