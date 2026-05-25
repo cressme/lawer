@@ -172,7 +172,7 @@ class MediaProcessor:
         """
         对图片进行 OCR 文字识别。
 
-        优先使用 PaddleOCR（支持中文效果好），回退到 pytesseract。
+        优先使用 RapidOCR（轻量、适合本地打包），回退到 PaddleOCR / pytesseract。
 
         Args:
             image_path: 图片文件路径。
@@ -191,7 +191,13 @@ class MediaProcessor:
         if not image_path.exists():
             raise FileNotFoundError(f"图片文件不存在: {image_path}")
 
-        # 优先使用 PaddleOCR
+        # 优先使用 RapidOCR。PaddleOCR 3.x 在部分 Windows/Paddle 组合上
+        # 会触发运行时错误，RapidOCR 更适合作为客户端默认 OCR。
+        try:
+            return self._ocr_with_rapidocr(image_path)
+        except (ImportError, RuntimeError) as e:
+            logger.debug("RapidOCR 不可用: %s，尝试 PaddleOCR", e)
+
         try:
             return self._ocr_with_paddle(image_path, lang=lang)
         except (ImportError, RuntimeError) as e:
@@ -205,8 +211,29 @@ class MediaProcessor:
 
         raise RuntimeError(
             "OCR 引擎不可用。请安装 paddleocr (pip install paddleocr paddlepaddle) "
-            "或 pytesseract (pip install pytesseract)。"
+            "或 rapidocr-onnxruntime / pytesseract。"
         )
+
+    def _ocr_with_rapidocr(self, image_path: Path) -> str:
+        """使用 RapidOCR/ONNXRuntime 进行文字识别。"""
+        from rapidocr_onnxruntime import RapidOCR
+
+        engine = RapidOCR()
+        result, _ = engine(str(image_path))
+        lines: List[str] = []
+        for item in result or []:
+            if not item or len(item) < 2:
+                continue
+            text = item[1]
+            if text:
+                lines.append(str(text))
+
+        text = "\n".join(lines)
+        logger.info(
+            "OCR 完成 (RapidOCR): %s -> %d 行",
+            image_path.name, len(lines),
+        )
+        return text
 
     def _ocr_with_paddle(
         self, image_path: Path, *, lang: str = "ch"
@@ -214,20 +241,23 @@ class MediaProcessor:
         """使用 PaddleOCR 进行文字识别。"""
         from paddleocr import PaddleOCR
 
-        ocr = PaddleOCR(use_angle_cls=True, lang=lang, show_log=False)
-        result = ocr.ocr(str(image_path), cls=True)
+        try:
+            ocr = PaddleOCR(
+                lang=lang,
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False,
+                use_textline_orientation=True,
+            )
+        except ValueError:
+            ocr = PaddleOCR(use_angle_cls=True, lang=lang)
+
+        try:
+            result = ocr.predict(str(image_path)) if hasattr(ocr, "predict") else ocr.ocr(str(image_path), cls=True)
+        except TypeError:
+            result = ocr.ocr(str(image_path))
 
         lines: List[str] = []
-        if result:
-            for page in result:
-                if page:
-                    for line_info in page:
-                        # line_info: [坐标, (文字, 置信度)]
-                        if line_info and len(line_info) >= 2:
-                            text = line_info[1][0] if isinstance(
-                                line_info[1], (list, tuple)
-                            ) else str(line_info[1])
-                            lines.append(text)
+        self._collect_paddle_text(result, lines)
 
         text = "\n".join(lines)
         logger.info(
@@ -235,6 +265,25 @@ class MediaProcessor:
             image_path.name, len(lines),
         )
         return text
+
+    def _collect_paddle_text(self, value: object, lines: List[str]) -> None:
+        if value is None:
+            return
+        if isinstance(value, dict):
+            for key in ("rec_texts", "texts"):
+                texts = value.get(key)
+                if isinstance(texts, list):
+                    lines.extend(str(text) for text in texts if text)
+                    return
+            for item in value.values():
+                self._collect_paddle_text(item, lines)
+            return
+        if isinstance(value, (list, tuple)):
+            if len(value) >= 2 and isinstance(value[1], (list, tuple)) and value[1]:
+                lines.append(str(value[1][0]))
+                return
+            for item in value:
+                self._collect_paddle_text(item, lines)
 
     def _ocr_with_tesseract(
         self, image_path: Path, *, lang: str = "ch"

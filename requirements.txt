@@ -20,4 +20,5 @@ openai-whisper>=20230918
 pilk>=0.2.0
 
 # OCR 文字识别
+rapidocr-onnxruntime>=1.4.4
 paddleocr>=2.7.0

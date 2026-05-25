@@ -16,6 +16,7 @@ def inspect_image_evidence(
     media_processor: Any = None,
     output_dir: Path | str | None = None,
     max_images: int = 64,
+    run_ocr: bool = False,
 ) -> List[Dict[str, Any]]:
     """Decode WeChat image attachments and optionally OCR them.
 
@@ -52,6 +53,7 @@ def inspect_image_evidence(
             media_extractor=media_extractor,
             media_processor=media_processor,
             output_dir=output_root,
+            run_ocr=run_ocr,
         )
         if result.get("status") == "decode_failed":
             thumb = thumbnails_by_msg.get(str(item.get("msg_id") or ""))
@@ -61,6 +63,7 @@ def inspect_image_evidence(
                     media_extractor=media_extractor,
                     media_processor=media_processor,
                     output_dir=output_root,
+                    run_ocr=run_ocr,
                 )
                 result["thumbnail_evidence"] = thumb_result
                 if thumb_result.get("status") == "decoded":
@@ -91,6 +94,7 @@ def inspect_image_evidence(
             media_extractor=media_extractor,
             media_processor=media_processor,
             output_dir=output_root,
+            run_ocr=run_ocr,
         )
         result["thumbnail_used"] = True
         if result.get("status") == "decoded":
@@ -119,6 +123,7 @@ def inspect_single_image(
     media_extractor: Any = None,
     media_processor: Any = None,
     output_dir: Path,
+    run_ocr: bool = False,
 ) -> Dict[str, Any]:
     source = Path(str(attachment.get("path") or ""))
     result: Dict[str, Any] = {
@@ -161,7 +166,7 @@ def inspect_single_image(
         result.update({"status": "decode_failed", "error": str(exc)})
         return result
 
-    if media_processor:
+    if run_ocr and media_processor:
         try:
             text = media_processor.image_ocr(result["decoded_path"])
             result["ocr_text"] = text.strip()
@@ -169,6 +174,9 @@ def inspect_single_image(
         except Exception as exc:
             result["ocr_status"] = "failed"
             result["ocr_error"] = str(exc)
+    elif run_ocr and not media_processor:
+        result["ocr_status"] = "unavailable"
+        result["ocr_error"] = "当前 OCR 模块不可用，请先安装或配置 OCR 依赖。"
 
     return result
 

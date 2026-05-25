@@ -175,6 +175,7 @@ class WeChatDBExtractor:
         self._v4_raw_keys: set[bytes] = set()
         self._v4_raw_keys_by_db: Dict[str, bytes] = {}
         self._decrypted_dbs: Dict[str, Path] = {}  # 已解密的数据库缓存
+        self._decrypted_db_signatures: Dict[str, Tuple[int, int]] = {}
         self._temp_dir: Optional[Path] = None       # 解密数据库的临时目录
         self._connections: Dict[tuple[int, str], sqlite3.Connection] = {}  # 数据库连接池
 
@@ -1029,10 +1030,19 @@ class WeChatDBExtractor:
             raise FileNotFoundError(f"数据库文件不存在: {db_path}")
 
         cache_key = str(db_path)
+        source_signature = (db_path.stat().st_mtime_ns, db_path.stat().st_size)
         if cache_key in self._decrypted_dbs:
             cached = self._decrypted_dbs[cache_key]
-            if cached.exists():
+            if cached.exists() and self._decrypted_db_signatures.get(cache_key) == source_signature:
                 return cached
+            self._close_connection_for_path(str(cached))
+            if cached.exists():
+                try:
+                    cached.unlink()
+                except OSError:
+                    logger.debug("无法删除过期解密缓存: %s", cached, exc_info=True)
+            self._decrypted_dbs.pop(cache_key, None)
+            self._decrypted_db_signatures.pop(cache_key, None)
 
         if self._temp_dir is None:
             self._temp_dir = Path(tempfile.mkdtemp(prefix="wechat_decrypt_"))
@@ -1059,6 +1069,7 @@ class WeChatDBExtractor:
                 self._decrypt_sqlcipher_database(db_path, key, decrypted_path)
 
             self._decrypted_dbs[cache_key] = decrypted_path
+            self._decrypted_db_signatures[cache_key] = source_signature
             logger.info("数据库解密成功: %s -> %s", db_path.name, decrypted_path)
             return decrypted_path
         except Exception as e:
@@ -1231,6 +1242,7 @@ class WeChatDBExtractor:
                 name_row = conn.execute("SELECT rowid FROM Name2Id WHERE user_name = ?", (contact_id,)).fetchone()
                 if not name_row:
                     continue
+                self_rowid = self._get_current_account_name2id(conn, wechat_dir)
                 table_name = f"Msg_{hashlib.md5(contact_id.encode('utf-8')).hexdigest()}"
                 exists = conn.execute(
                     "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,)
@@ -1251,6 +1263,7 @@ class WeChatDBExtractor:
                     if not rows:
                         continue
                     for row_msg in rows:
+                        real_sender_id = row_msg[3]
                         attachments = self._resolve_message_attachments(
                             wechat_dir=wechat_dir,
                             local_id=row_msg[0],
@@ -1268,7 +1281,8 @@ class WeChatDBExtractor:
                             "MsgSvrID": row_msg[1],
                             "Type": row_msg[2],
                             "SubType": 0,
-                            "IsSender": 1 if row_msg[3] == 0 else 0,
+                            "IsSender": self._is_windows_new_self_message(real_sender_id, self_rowid, name_row[0]),
+                            "RealSenderId": real_sender_id,
                             "CreateTime": row_msg[4],
                             "Sequence": row_msg[5],
                             "StrTalker": contact_id,
@@ -1285,6 +1299,55 @@ class WeChatDBExtractor:
         all_messages.sort(key=lambda m: m.get("CreateTime", 0))
         logger.info("提取到 %d 条新版微信消息 (联系人: %s)", len(all_messages), contact_id)
         return all_messages
+
+    @staticmethod
+    def _get_current_account_wxid(wechat_dir: Path) -> str:
+        """Best-effort account wxid from a Windows xwechat account directory."""
+        name = wechat_dir.name
+        match = re.match(r"^(wxid_[A-Za-z0-9_-]+)_[0-9a-fA-F]{4}$", name)
+        if match:
+            return match.group(1)
+        return name if name.startswith("wxid_") else ""
+
+    def _get_current_account_name2id(self, conn: sqlite3.Connection, wechat_dir: Path) -> Optional[int]:
+        account_wxid = self._get_current_account_wxid(wechat_dir)
+        if not account_wxid:
+            return None
+        try:
+            row = conn.execute(
+                "SELECT rowid FROM Name2Id WHERE user_name = ?",
+                (account_wxid,),
+            ).fetchone()
+        except sqlite3.Error:
+            return None
+        return int(row[0]) if row else None
+
+    @staticmethod
+    def _is_windows_new_self_message(
+        real_sender_id: object,
+        self_rowid: Optional[int],
+        contact_rowid: object,
+    ) -> int:
+        """Return 1 if a Weixin 4.x message was sent by the current account.
+
+        In the db_storage/message layout, real_sender_id points into Name2Id.
+        Direct chats use the contact's rowid for incoming messages and the
+        current account's rowid for outgoing messages. Older layouts sometimes
+        use 0 for self, so keep that fallback.
+        """
+        try:
+            sender_id = int(real_sender_id)
+        except (TypeError, ValueError):
+            return 0
+
+        if sender_id == 0:
+            return 1
+        if self_rowid is not None:
+            return 1 if sender_id == int(self_rowid) else 0
+        try:
+            return 0 if sender_id == int(contact_rowid) else 1
+        except (TypeError, ValueError):
+            return 0
 
     @staticmethod
     def _decode_message_payload(value: object, compressed: object = None, msg_type: Optional[int] = None) -> str:
@@ -1630,6 +1693,16 @@ class WeChatDBExtractor:
             self._connections[cache_key] = conn
         return self._connections[cache_key]
 
+    def _close_connection_for_path(self, db_path: str) -> None:
+        for cache_key, conn in list(self._connections.items()):
+            if cache_key[1] != db_path:
+                continue
+            try:
+                conn.close()
+            except Exception:
+                pass
+            self._connections.pop(cache_key, None)
+
     @staticmethod
     def _decode_sqlite_text(value: bytes) -> str:
         try:
@@ -1666,4 +1739,5 @@ class WeChatDBExtractor:
             self._temp_dir = None
 
         self._decrypted_dbs.clear()
+        self._decrypted_db_signatures.clear()
         self._decrypt_key = None

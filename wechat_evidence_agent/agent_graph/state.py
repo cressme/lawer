@@ -31,6 +31,8 @@ class EvidenceAgentState(TypedDict, total=False):
     image_messages: List[Dict[str, Any]]
     image_attachments: List[Dict[str, Any]]
     image_evidence: List[Dict[str, Any]]
+    pending_confirmations: List[Dict[str, Any]]
+    last_confirmation: Dict[str, Any]
     attachment_counts: Dict[str, int]
 
     material_summary: Dict[str, Any]

@@ -319,6 +319,11 @@ button, input, textarea, select { font: inherit; }
   color: #17130a;
   font-weight: 700;
 }
+.btn.danger {
+  background: rgba(196,91,91,.16);
+  border-color: rgba(196,91,91,.7);
+  color: #ffd8d8;
+}
 .btn.ghost { justify-content: flex-start; }
 .main { min-width: 0; min-height: 0; }
 .workspace { height: 100vh; min-width: 0; min-height: 0; }
@@ -356,6 +361,80 @@ button, input, textarea, select { font: inherit; }
   white-space: pre-wrap;
   background: rgba(22,24,32,.92);
 }
+.markdown-body {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.markdown-body > *:first-child { margin-top: 0; }
+.markdown-body > *:last-child { margin-bottom: 0; }
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  margin: 14px 0 8px;
+  color: var(--text);
+  line-height: 1.35;
+}
+.markdown-body h1 { font-size: 20px; }
+.markdown-body h2 { font-size: 18px; }
+.markdown-body h3 { font-size: 16px; }
+.markdown-body h4 { font-size: 15px; }
+.markdown-body p { margin: 8px 0; }
+.markdown-body ul,
+.markdown-body ol {
+  margin: 8px 0 8px 22px;
+  padding: 0;
+}
+.markdown-body li { margin: 4px 0; }
+.markdown-body strong { color: #fff4c9; font-weight: 700; }
+.markdown-body em { color: var(--gold-2); font-style: normal; }
+.markdown-body code {
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: rgba(255,255,255,.08);
+  color: #ffe7a4;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: .92em;
+}
+.markdown-body pre {
+  margin: 10px 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #080a0f;
+}
+.markdown-body pre code {
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+}
+.markdown-body blockquote {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--gold);
+  background: rgba(201,168,76,.08);
+  color: var(--muted);
+}
+.markdown-body table {
+  width: 100%;
+  margin: 10px 0;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--line);
+  padding: 7px 8px;
+  vertical-align: top;
+}
+.markdown-body th {
+  background: rgba(201,168,76,.10);
+  color: var(--gold-2);
+  font-weight: 650;
+}
+.markdown-body a { color: var(--gold-2); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
 .previews {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -389,6 +468,29 @@ button, input, textarea, select { font: inherit; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.preview-meta {
+  padding: 0 8px 7px;
+  color: rgba(201,207,219,.70);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.preview-ocr {
+  margin: 0 8px 9px;
+  padding: 8px;
+  border: 1px solid rgba(201,168,76,.18);
+  border-radius: 6px;
+  background: rgba(201,168,76,.06);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.preview-ocr.empty {
+  color: var(--muted);
+  border-color: rgba(255,255,255,.10);
+  background: rgba(255,255,255,.025);
+}
 .preview-placeholder {
   display: grid;
   place-items: center;
@@ -400,6 +502,19 @@ button, input, textarea, select { font: inherit; }
   line-height: 1.5;
   background: rgba(201,168,76,.06);
 }
+.confirm-card {
+  margin-top: 12px;
+  border: 1px solid rgba(201,168,76,.38);
+  border-radius: 8px;
+  padding: 13px;
+  display: grid;
+  gap: 10px;
+  background: rgba(201,168,76,.07);
+}
+.confirm-title { color: var(--gold-2); font-weight: 700; }
+.confirm-text { color: var(--muted); font-size: 13px; line-height: 1.65; }
+.confirm-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.confirm-card.done { border-color: var(--line); background: rgba(255,255,255,.035); }
 .image-lightbox {
   position: fixed;
   inset: 0;
@@ -1091,10 +1206,17 @@ const HISTORY_COLLAPSE_LIMIT = 5;
 let chatSessions = [];
 let currentChatId = "";
 let showAllChatHistory = false;
+let pendingRequests = new Map();
+let renderCleanup = [];
 
 function makeChatId() {
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
   return "chat-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+}
+
+function makeMessageId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return "msg-" + Date.now() + "-" + Math.random().toString(16).slice(2);
 }
 
 function createChatSession() {
@@ -1136,15 +1258,60 @@ function updateCurrentTitle(session, text) {
   if (title) session.title = title.slice(0, 22);
 }
 
-function appendMessageToCurrent(role, text, images) {
-  const session = getCurrentSession();
-  session.messages.push({role, text, images: images || [], time: Date.now()});
+function appendMessageToSession(sessionId, role, text, images, extra = {}) {
+  let session = chatSessions.find(item => item.id === sessionId);
+  if (!session) {
+    session = createChatSession();
+    session.id = sessionId || session.id;
+    chatSessions.unshift(session);
+  }
+  const message = {
+    id: extra.id || makeMessageId(),
+    role,
+    text,
+    images: images || [],
+    confirmations: extra.confirmations || [],
+    time: Date.now(),
+    status: extra.status || "done",
+    prompt: extra.prompt || ""
+  };
+  session.messages.push(message);
   if (role === "user") updateCurrentTitle(session, text);
   session.updatedAt = Date.now();
   chatSessions = [session].concat(chatSessions.filter(item => item.id !== session.id));
   saveChatSessions();
   renderChatHistory();
-  updateCaseHeader(session);
+  if (session.id === currentChatId) updateCaseHeader(session);
+  return message;
+}
+
+function appendMessageToCurrent(role, text, images, extra = {}) {
+  return appendMessageToSession(currentChatId, role, text, images, extra);
+}
+
+function updateSessionMessage(sessionId, messageId, patch) {
+  const session = chatSessions.find(item => item.id === sessionId);
+  if (!session) return;
+  const message = (session.messages || []).find(item => item.id === messageId);
+  if (!message) return;
+  Object.assign(message, patch, {time: Date.now()});
+  session.updatedAt = Date.now();
+  chatSessions = [session].concat(chatSessions.filter(item => item.id !== session.id));
+  saveChatSessions();
+  renderChatHistory();
+  if (session.id === currentChatId) renderCurrentChat();
+}
+
+function updateSendButton() {
+  const send = document.getElementById("send");
+  if (!send) return;
+  if (pendingRequests.has(currentChatId)) {
+    send.textContent = "中止";
+    send.classList.add("danger");
+  } else {
+    send.textContent = "发送";
+    send.classList.remove("danger");
+  }
 }
 
 function updateCaseHeader(session) {
@@ -1220,12 +1387,25 @@ function welcomeHtml() {
 function renderCurrentChat() {
   const session = getCurrentSession();
   updateCaseHeader(session);
+  renderCleanup.forEach(cleanup => cleanup());
+  renderCleanup = [];
   chat.innerHTML = "";
   if (!session.messages.length) {
     chat.innerHTML = welcomeHtml();
   } else {
-    session.messages.forEach(message => addMessage(message.role, message.text, {persist: false, images: message.images || []}));
+    session.messages.forEach(message => {
+      const item = addMessage(message.role, message.text, {
+        persist: false,
+        images: message.images || [],
+        confirmations: message.confirmations || []
+      });
+      if (message.status === "pending") {
+        const stop = startProcessIndicator(item, message.prompt || message.text || "");
+        renderCleanup.push(stop);
+      }
+    });
   }
+  updateSendButton();
   chat.scrollTop = chat.scrollHeight;
 }
 
@@ -1248,6 +1428,7 @@ function selectChatSession(id) {
   currentChatId = id;
   renderChatHistory();
   renderCurrentChat();
+  updateSendButton();
   showWorkspace("case");
 }
 
@@ -1530,9 +1711,120 @@ function escapeHtml(value) {
   }[char]));
 }
 
+function renderMarkdown(text) {
+  const source = String(text || "").replace(/\r\n/g, "\n");
+  const tokens = [];
+  let protectedText = source.replace(/```([\s\S]*?)```/g, (_, code) => {
+    const key = `\u0000CODE${tokens.length}\u0000`;
+    tokens.push(`<pre><code>${escapeHtml(code.replace(/^\n|\n$/g, ""))}</code></pre>`);
+    return key;
+  });
+
+  const lines = protectedText.split("\n");
+  const html = [];
+  let paragraph = [];
+  let listType = "";
+  let listItems = [];
+  let tableRows = [];
+
+  function inline(value) {
+    let htmlValue = escapeHtml(value);
+    htmlValue = htmlValue.replace(/`([^`]+)`/g, "<code>$1</code>");
+    htmlValue = htmlValue.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    htmlValue = htmlValue.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+    htmlValue = htmlValue.replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+    htmlValue = htmlValue.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+    return htmlValue;
+  }
+
+  function flushParagraph() {
+    if (!paragraph.length) return;
+    html.push(`<p>${inline(paragraph.join(" "))}</p>`);
+    paragraph = [];
+  }
+
+  function flushList() {
+    if (!listItems.length) return;
+    html.push(`<${listType}>${listItems.map(item => `<li>${inline(item)}</li>`).join("")}</${listType}>`);
+    listType = "";
+    listItems = [];
+  }
+
+  function flushTable() {
+    if (!tableRows.length) return;
+    const rows = tableRows.filter(row => !/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(row));
+    if (rows.length) {
+      const cells = row => row.trim().replace(/^\||\|$/g, "").split("|").map(cell => cell.trim());
+      const head = cells(rows[0]);
+      const body = rows.slice(1);
+      html.push(`<table><thead><tr>${head.map(cell => `<th>${inline(cell)}</th>`).join("")}</tr></thead><tbody>${body.map(row => `<tr>${cells(row).map(cell => `<td>${inline(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`);
+    }
+    tableRows = [];
+  }
+
+  lines.forEach(line => {
+    if (/^\u0000CODE\d+\u0000$/.test(line.trim())) {
+      flushParagraph();
+      flushList();
+      flushTable();
+      html.push(line.trim());
+      return;
+    }
+    if (!line.trim()) {
+      flushParagraph();
+      flushList();
+      flushTable();
+      return;
+    }
+    if (/^\s*\|.+\|\s*$/.test(line)) {
+      flushParagraph();
+      flushList();
+      tableRows.push(line);
+      return;
+    }
+    flushTable();
+    const heading = line.match(/^(#{1,4})\s+(.+)$/);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      const level = heading[1].length;
+      html.push(`<h${level}>${inline(heading[2])}</h${level}>`);
+      return;
+    }
+    const quote = line.match(/^>\s?(.+)$/);
+    if (quote) {
+      flushParagraph();
+      flushList();
+      html.push(`<blockquote>${inline(quote[1])}</blockquote>`);
+      return;
+    }
+    const unordered = line.match(/^\s*[-*]\s+(.+)$/);
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (unordered || ordered) {
+      flushParagraph();
+      const type = unordered ? "ul" : "ol";
+      if (listType && listType !== type) flushList();
+      listType = type;
+      listItems.push((unordered || ordered)[1]);
+      return;
+    }
+    paragraph.push(line.trim());
+  });
+
+  flushParagraph();
+  flushList();
+  flushTable();
+  let result = html.join("");
+  tokens.forEach((token, index) => {
+    result = result.replace(`\u0000CODE${index}\u0000`, token);
+  });
+  return result || escapeHtml(source);
+}
+
 function addMessage(role, text, options = {}) {
   const persist = options.persist !== false;
   const images = options.images || [];
+  const confirmations = options.confirmations || [];
   if (persist && chat.querySelector(".welcome-panel")) chat.innerHTML = "";
   const item = document.createElement("article");
   item.className = "message " + role;
@@ -1541,13 +1833,75 @@ function addMessage(role, text, options = {}) {
   meta.textContent = role === "user" ? "律师" : role === "system" ? "系统" : "助手";
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.textContent = text;
+  if (role === "assistant" || role === "system") {
+    bubble.classList.add("markdown-body");
+    bubble.innerHTML = renderMarkdown(text);
+  } else {
+    bubble.textContent = text;
+  }
   item.append(meta, bubble);
   chat.append(item);
   renderImages(item, images);
-  if (persist) appendMessageToCurrent(role, text, images);
+  renderConfirmations(item, confirmations);
+  if (persist) appendMessageToCurrent(role, text, images, {confirmations});
   chat.scrollTop = chat.scrollHeight;
   return item;
+}
+
+function renderConfirmations(item, confirmations) {
+  if (!confirmations || !confirmations.length) return;
+  const wrap = document.createElement("div");
+  wrap.className = "confirmations";
+  confirmations.forEach(confirmation => {
+    if (!confirmation || confirmation.type !== "image_ocr") return;
+    const card = document.createElement("section");
+    card.className = "confirm-card";
+    const title = document.createElement("div");
+    title.className = "confirm-title";
+    title.textContent = confirmation.title || "需要确认";
+    const text = document.createElement("div");
+    text.className = "confirm-text";
+    text.textContent = confirmation.message || "";
+    const actions = document.createElement("div");
+    actions.className = "confirm-actions";
+    (confirmation.options || []).forEach(option => {
+      const button = document.createElement("button");
+      button.className = option.action === "skip" ? "btn" : "btn primary";
+      button.type = "button";
+      button.textContent = option.label || option.action;
+      button.addEventListener("click", () => submitConfirmation(confirmation.id, option.action, card));
+      actions.append(button);
+    });
+    card.append(title, text, actions);
+    wrap.append(card);
+  });
+  item.append(wrap);
+}
+
+async function submitConfirmation(confirmationId, action, card) {
+  const session = getCurrentSession();
+  const buttons = Array.from(card.querySelectorAll("button"));
+  buttons.forEach(button => button.disabled = true);
+  const text = card.querySelector(".confirm-text");
+  const oldText = text ? text.textContent : "";
+  if (text) text.textContent = action === "skip" ? "正在记录选择..." : "正在执行 OCR，请稍候...";
+  try {
+    const data = await api("/api/confirm", {
+      session_id: session.id,
+      confirmation_id: confirmationId,
+      action
+    });
+    card.classList.add("done");
+    if (text) text.textContent = data.response || "已处理。";
+    addMessage("system", data.response || "确认操作已完成。", {
+      images: data.images || [],
+      confirmations: data.confirmations || []
+    });
+  } catch (err) {
+    buttons.forEach(button => button.disabled = false);
+    if (text) text.textContent = oldText || err.message;
+    addMessage("system", err.message, {persist: false});
+  }
 }
 
 function renderImages(item, images) {
@@ -1578,6 +1932,34 @@ function renderImages(item, images) {
     caption.className = "preview-caption";
     caption.textContent = image.name || image.path || "图片证据";
     card.append(caption);
+    const metaParts = [];
+    if (image.time) metaParts.push(image.time);
+    if (image.sender) metaParts.push(image.sender);
+    if (image.ocr_status) {
+      const statusMap = {ok: "OCR 已识别", empty: "OCR 未识别到文字", failed: "OCR 失败", skipped: "未 OCR"};
+      metaParts.push(statusMap[image.ocr_status] || ("OCR " + image.ocr_status));
+    }
+    if (metaParts.length) {
+      const meta = document.createElement("div");
+      meta.className = "preview-meta";
+      meta.textContent = metaParts.join(" · ");
+      card.append(meta);
+    }
+    if (image.ocr_text || image.ocr_status || image.ocr_error) {
+      const ocr = document.createElement("div");
+      const hasText = Boolean((image.ocr_text || "").trim());
+      ocr.className = "preview-ocr" + (hasText ? "" : " empty");
+      if (hasText) {
+        ocr.textContent = image.ocr_text.trim();
+      } else if (image.ocr_error) {
+        ocr.textContent = "识别失败：" + image.ocr_error;
+      } else if (image.ocr_status === "empty") {
+        ocr.textContent = "未识别到可用文字。";
+      } else {
+        ocr.textContent = "暂无 OCR 文字。";
+      }
+      card.append(ocr);
+    }
     wrap.append(card);
   });
   item.append(wrap);
@@ -1682,12 +2064,13 @@ function closeLightbox() {
   if (box) box.classList.remove("open");
 }
 
-async function api(path, payload) {
+async function api(path, payload, extraOptions = {}) {
   const options = payload === undefined ? {} : {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify(payload)
   };
+  Object.assign(options, extraOptions || {});
   const res = await fetch(path, options);
   const data = await res.json();
   if (!res.ok || data.ok === false) throw new Error(data.error || "请求失败");
@@ -1719,27 +2102,56 @@ async function refreshStatus() {
 }
 
 async function sendMessage() {
+  if (pendingRequests.has(currentChatId)) {
+    cancelCurrentRequest();
+    return;
+  }
   const text = input.value.trim();
   if (!text) return;
+  const session = getCurrentSession();
+  const sessionId = session.id;
+  const controller = new AbortController();
+  pendingRequests.set(sessionId, controller);
   input.value = "";
-  addMessage("user", text);
-  const pending = addMessage("assistant", "正在处理...", {persist: false});
-  const stopProcessIndicator = startProcessIndicator(pending, text);
-  document.getElementById("send").disabled = true;
+  appendMessageToSession(sessionId, "user", text, []);
+  const pendingMessage = appendMessageToSession(sessionId, "assistant", "正在处理...", [], {
+    status: "pending",
+    prompt: text
+  });
+  let stopProcessIndicator = () => {};
+  if (sessionId === currentChatId) {
+    renderCurrentChat();
+    const pending = chat.querySelector(".message:last-child");
+    if (pending) stopProcessIndicator = startProcessIndicator(pending, text);
+  }
+  updateSendButton();
   try {
-    const data = await api("/api/chat", {message: text});
+    const data = await api("/api/chat", {message: text, session_id: sessionId}, {signal: controller.signal});
     stopProcessIndicator();
-    pending.querySelector(".bubble").textContent = data.response;
-    renderImages(pending, data.images);
-    appendMessageToCurrent("assistant", data.response, data.images || []);
+    updateSessionMessage(sessionId, pendingMessage.id, {
+      text: data.response,
+      images: data.images || [],
+      confirmations: data.confirmations || [],
+      status: "done"
+    });
   } catch (err) {
     stopProcessIndicator();
-    pending.querySelector(".bubble").textContent = err.message;
-    appendMessageToCurrent("assistant", err.message, []);
+    const aborted = err && err.name === "AbortError";
+    updateSessionMessage(sessionId, pendingMessage.id, {
+      text: aborted ? "已中止本次请求。" : err.message,
+      images: [],
+      status: aborted ? "cancelled" : "error"
+    });
   } finally {
-    document.getElementById("send").disabled = false;
+    pendingRequests.delete(sessionId);
+    updateSendButton();
     chat.scrollTop = chat.scrollHeight;
   }
+}
+
+function cancelCurrentRequest() {
+  const controller = pendingRequests.get(currentChatId);
+  if (controller) controller.abort();
 }
 
 function sendQuick(text) {
@@ -1748,8 +2160,8 @@ function sendQuick(text) {
 }
 
 async function resetChat() {
-  await api("/api/reset", {});
   const session = getCurrentSession();
+  await api("/api/reset", {session_id: session.id});
   session.messages = [];
   session.title = "新对话";
   session.updatedAt = Date.now();
@@ -1838,6 +2250,8 @@ class _ClientHandler(BaseHTTPRequestHandler):
     app: WeChatEvidenceApp
     config_path: Path
     lock: threading.Lock
+    session_locks: dict[str, threading.Lock]
+    session_locks_guard: threading.Lock
 
     def log_message(self, fmt: str, *args: Any) -> None:
         logger.info("web client: " + fmt, *args)
@@ -1918,32 +2332,57 @@ class _ClientHandler(BaseHTTPRequestHandler):
                 return
 
             payload = self._read_json()
-            with self.lock:
-                if path == "/api/chat":
-                    message = str(payload.get("message", "")).strip()
-                    if not message:
-                        raise ValueError("请输入要发送的内容。")
-                    chat_handler = (
-                        self.app.graph_agent.chat
-                        if hasattr(self.app, "graph_agent")
-                        else self.app.agent.chat
-                    )
+            if path == "/api/chat":
+                message = str(payload.get("message", "")).strip()
+                session_id = str(payload.get("session_id") or "default").strip() or "default"
+                if not message:
+                    raise ValueError("请输入要发送的内容。")
+                logger.info("Web chat request: session=%s message=%s", session_id, message[:120])
+                with self._get_session_lock(session_id):
+                    if hasattr(self.app, "graph_agent"):
+                        chat_handler = lambda text: self.app.graph_agent.chat(text, thread_id=session_id)
+                    else:
+                        chat_handler = self.app.agent.chat
                     response = _call_with_timeout(
                         chat_handler,
                         message,
                         timeout=90,
                     )
+                    state = self.app.graph_agent.get_state(session_id) if hasattr(self.app, "graph_agent") else {}
                     self._json({
                         "ok": True,
                         "response": response,
-                        "images": self._collect_preview_images(),
+                        "images": self._collect_chat_response_images(session_id, state),
+                        "confirmations": self._collect_confirmations(session_id),
                     })
+                return
+
+            with self.lock:
+                if path == "/api/confirm":
+                    if not hasattr(self.app, "graph_agent"):
+                        raise ValueError("当前 Agent 不支持确认任务。")
+                    session_id = str(payload.get("session_id") or "default").strip() or "default"
+                    confirmation_id = str(payload.get("confirmation_id") or "").strip()
+                    action = str(payload.get("action") or "").strip()
+                    if not confirmation_id or not action:
+                        raise ValueError("确认任务参数不完整。")
+                    result = self.app.graph_agent.handle_confirmation(
+                        confirmation_id=confirmation_id,
+                        action=action,
+                        thread_id=session_id,
+                    )
+                    self._json({
+                        "ok": bool(result.get("ok")),
+                        "response": result.get("response", ""),
+                        "images": self._collect_ocr_preview_images(result.get("images") or []),
+                        "confirmations": self._collect_confirmations(session_id),
+                    }, 200 if result.get("ok") else 400)
                     return
 
                 if path == "/api/reset":
                     self.app.agent.reset()
                     if hasattr(self.app, "graph_agent"):
-                        self.app.graph_agent.reset()
+                        self.app.graph_agent.reset(str(payload.get("session_id") or "default").strip() or "default")
                     self._json({"ok": True})
                     return
 
@@ -1971,6 +2410,15 @@ class _ClientHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             logger.exception("Web client request failed: %s", path)
             self._json({"ok": False, "error": _friendly_error(exc)}, 400)
+
+    def _get_session_lock(self, session_id: str) -> threading.Lock:
+        key = str(session_id or "default")
+        with self.session_locks_guard:
+            lock = self.session_locks.get(key)
+            if lock is None:
+                lock = threading.Lock()
+                self.session_locks[key] = lock
+            return lock
 
     def _read_multipart(self) -> tuple[dict[str, str], list[dict[str, Any]]]:
         content_type = self.headers.get("Content-Type", "")
@@ -2081,8 +2529,12 @@ class _ClientHandler(BaseHTTPRequestHandler):
         self.app.config.save_to_file(self.config_path, redact_secrets=False)
         return {"wechat_dir": str(resolved)}
 
-    def _collect_preview_images(self) -> list[dict[str, str]]:
-        state = getattr(getattr(self.app, "graph_agent", None), "state", {}) or {}
+    def _collect_preview_images(self, session_id: str | None = None) -> list[dict[str, str]]:
+        graph_agent = getattr(self.app, "graph_agent", None)
+        if graph_agent and session_id:
+            state = graph_agent.get_state(session_id)
+        else:
+            state = getattr(graph_agent, "state", {}) or {}
         images: list[dict[str, str]] = []
         seen: set[str] = set()
         max_preview_images = 80
@@ -2118,6 +2570,54 @@ class _ClientHandler(BaseHTTPRequestHandler):
                     "error": _short_image_error(str(item.get("error") or "")),
                 })
         return images
+
+    def _collect_chat_response_images(
+        self,
+        session_id: str,
+        state: dict[str, Any] | None,
+    ) -> list[dict[str, str]]:
+        state = state or {}
+        action = str(state.get("next_action") or "")
+        if action in {"extract_only", "extract_and_analyze"}:
+            return self._collect_preview_images(session_id)
+        return []
+
+    def _collect_ocr_preview_images(self, image_items: list[dict[str, Any]]) -> list[dict[str, str]]:
+        images: list[dict[str, str]] = []
+        seen: set[str] = set()
+        for item in image_items:
+            if not isinstance(item, dict):
+                continue
+            decoded = str(item.get("path") or item.get("decoded_path") or "")
+            url = ""
+            if decoded and decoded not in seen:
+                path = Path(decoded)
+                if path.is_file() and _looks_like_image(path):
+                    url = f"/api/file?path={quote(decoded)}"
+                    seen.add(decoded)
+            images.append({
+                "path": decoded,
+                "name": str(item.get("name") or (Path(decoded).name if decoded else "图片证据")),
+                "url": url,
+                "status": str(item.get("status") or ""),
+                "time": str(item.get("time") or ""),
+                "sender": str(item.get("sender") or ""),
+                "ocr_status": str(item.get("ocr_status") or ""),
+                "ocr_text": str(item.get("ocr_text") or ""),
+                "ocr_error": _short_image_error(str(item.get("ocr_error") or "")),
+            })
+        return images
+
+    def _collect_confirmations(self, session_id: str | None = None) -> list[dict[str, Any]]:
+        graph_agent = getattr(self.app, "graph_agent", None)
+        if not graph_agent:
+            return []
+        if session_id:
+            state = graph_agent.get_state(session_id)
+        else:
+            state = getattr(graph_agent, "state", {}) or {}
+        confirmations = state.get("pending_confirmations") or []
+        return [item for item in confirmations if isinstance(item, dict)]
 
     def _handle_local_shortcut(self, message: str) -> str | None:
         normalized = re.sub(r"\s+", "", message)
@@ -2217,7 +2717,13 @@ def run_web_client(
     handler = type(
         "WeChatEvidenceClientHandler",
         (_ClientHandler,),
-        {"app": app, "config_path": config_path, "lock": threading.Lock()},
+        {
+            "app": app,
+            "config_path": config_path,
+            "lock": threading.Lock(),
+            "session_locks": {},
+            "session_locks_guard": threading.Lock(),
+        },
     )
 
     server = ThreadingHTTPServer((host, port), handler)
