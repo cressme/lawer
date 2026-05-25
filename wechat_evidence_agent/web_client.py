@@ -51,6 +51,20 @@ HTML = r"""<!doctype html>
 }
 * { box-sizing: border-box; }
 .hidden { display: none !important; }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201,168,76,.48) rgba(255,255,255,.035);
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,.035); border-radius: 999px; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(201,168,76,.68), rgba(91,184,196,.50));
+  border: 2px solid rgba(10,11,15,.92);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(232,212,138,.86), rgba(91,184,196,.72));
+}
 body {
   margin: 0;
   min-height: 100vh;
@@ -112,6 +126,27 @@ button, input, textarea, select { font: inherit; }
 }
 .side-section { display: grid; gap: 9px; min-height: 0; }
 .side-section.history-section { flex: 1; }
+.workspace-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,.025);
+}
+.workspace-switch .nav-btn {
+  border: 0;
+  border-radius: 6px;
+  padding: 9px 8px;
+  text-align: center;
+  font-size: 13px;
+  background: transparent;
+}
+.workspace-switch .nav-btn.active {
+  background: rgba(201,168,76,.14);
+  color: var(--text);
+}
 .side-section-title {
   color: var(--faint);
   font-size: 12px;
@@ -160,14 +195,6 @@ button, input, textarea, select { font: inherit; }
   line-height: 1.6;
   padding: 12px;
 }
-.status-grid { display: grid; gap: 10px; }
-.status-card {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 13px 14px;
-  min-width: 0;
-}
 .label { color: var(--faint); font-size: 12px; margin-bottom: 5px; }
 .value {
   color: var(--text);
@@ -177,12 +204,6 @@ button, input, textarea, select { font: inherit; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-#wechatDir {
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  line-height: 1.55;
-}
 .ok { color: var(--green); }
 .warn { color: var(--gold); }
 .bad { color: var(--red); }
@@ -190,22 +211,59 @@ button, input, textarea, select { font: inherit; }
   border-top: 1px solid var(--line);
   padding-top: 12px;
   display: grid;
-  gap: 12px;
+  gap: 10px;
+  margin-top: auto;
 }
-.side-footer .status-grid {
-  grid-template-columns: 1fr 1fr;
+.connection-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+.connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 0;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--red);
+  box-shadow: 0 0 0 3px rgba(196,91,91,.12);
+  flex: 0 0 auto;
+}
+.status-dot.ok {
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(90,173,114,.14);
+}
+.status-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.side-footer .btn {
+  justify-content: flex-start;
+  padding: 9px 10px;
+  font-size: 13px;
+}
+.quick-actions {
+  display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
 }
-.side-footer .status-card { padding: 10px 11px; }
-.side-footer .status-card.wide { grid-column: 1 / -1; }
-.quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .quick-actions .btn {
   min-width: 0;
   justify-content: center;
-  padding: 9px 8px;
-  font-size: 13px;
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 999px;
 }
-.quick-actions .btn.wide { grid-column: 1 / -1; }
 .main-nav {
   display: grid;
   gap: 8px;
@@ -457,7 +515,7 @@ button, input, textarea, select { font: inherit; }
 }
 .composer {
   border-top: 1px solid var(--line);
-  padding: 18px 28px 22px;
+  padding: 14px 28px 22px;
   background: rgba(10,11,15,.88);
 }
 .composer-inner {
@@ -804,36 +862,18 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
       <div class="side-section-title">Chat history</div>
       <div class="chat-history" id="chatHistory"></div>
     </section>
-    <section class="side-section">
-      <div class="side-section-title">Status</div>
-      <section class="status-grid">
-      <div class="status-card">
-        <div class="label">模型</div>
-        <div class="value" id="model">-</div>
-      </div>
-      <div class="status-card">
-        <div class="label">API 配置</div>
-        <div class="value" id="apiStatus">-</div>
-      </div>
-      <div class="status-card">
-        <div class="label">微信数据目录</div>
-        <div class="value" id="wechatDir">-</div>
-      </div>
-    </section>
-    </section>
-    <section class="main-nav">
+    <section class="main-nav workspace-switch" aria-label="工作区切换">
       <button class="nav-btn active" id="navCase" onclick="showWorkspace('case')">案件工作台</button>
       <button class="nav-btn" id="navTools" onclick="showWorkspace('tools')">常用工具</button>
     </section>
-    <section class="side-section">
-      <div class="side-section-title">Actions</div>
-      <section class="quick-actions">
-        <button class="btn ghost" onclick="openConfig()">配置模型</button>
-        <button class="btn ghost" onclick="openDir()">微信目录</button>
-        <button class="btn ghost" onclick="sendQuick('帮我列出联系人')">联系人</button>
-        <button class="btn ghost" onclick="sendQuick('帮我分析当前案件的证据链')">证据链</button>
-        <button class="btn ghost wide" onclick="resetChat()">重置当前对话</button>
-      </section>
+    <section class="side-footer">
+      <button class="btn ghost" id="configButton" onclick="openConfig()" title="正在检查 AI 连接状态">
+        <span class="status-dot" id="aiStatusDot"></span>
+        <span id="aiStatusText">AI 未连接</span>
+      </button>
+      <button class="btn ghost" id="dirButton" onclick="openDir()" title="设置微信数据目录">
+        <span>微信目录</span>
+      </button>
     </section>
   </aside>
   <main class="main">
@@ -854,6 +894,12 @@ textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,7
         </article>
       </section>
       <section class="composer">
+        <section class="quick-actions" aria-label="常用操作">
+          <button class="btn ghost" onclick="sendQuick('帮我列出联系人')">列出联系人</button>
+          <button class="btn ghost" onclick="sendQuick('帮我分析当前案件的证据链')">分析证据链</button>
+          <button class="btn ghost" onclick="resetChat()">重置对话</button>
+          <button class="btn ghost" onclick="openDir()">设置微信目录</button>
+        </section>
         <div class="composer-inner">
           <textarea id="input" placeholder="例如：帮我查一下本地跟蔚青的聊天，并提取涉及借款的消息"></textarea>
           <button class="btn primary" id="send" onclick="sendMessage()">发送</button>
@@ -1542,12 +1588,28 @@ async function api(path, payload) {
 async function refreshStatus() {
   try {
     statusCache = await api("/api/status");
-    document.getElementById("model").textContent = statusCache.model || "-";
-    document.getElementById("apiStatus").textContent = statusCache.api_key_configured ? "已配置" : "未配置";
-    document.getElementById("apiStatus").className = "value " + (statusCache.api_key_configured ? "ok" : "warn");
-    document.getElementById("wechatDir").textContent = statusCache.wechat_dir || "未设置";
+    const connected = !!statusCache.api_key_configured;
+    const dot = document.getElementById("aiStatusDot");
+    const text = document.getElementById("aiStatusText");
+    const configButton = document.getElementById("configButton");
+    const dirButton = document.getElementById("dirButton");
+    if (dot) dot.classList.toggle("ok", connected);
+    if (text) text.textContent = connected ? "AI 已连接" : "AI 未连接";
+    if (configButton) {
+      const model = statusCache.model || "-";
+      configButton.title = connected ? `AI 已连接：${model}` : "AI 未连接：点击配置模型和 API Key";
+    }
+    if (dirButton) {
+      dirButton.title = statusCache.wechat_dir ? `微信目录：${statusCache.wechat_dir}` : "微信目录未设置";
+    }
   } catch (err) {
-    addMessage("system", err.message);
+    const dot = document.getElementById("aiStatusDot");
+    const text = document.getElementById("aiStatusText");
+    const configButton = document.getElementById("configButton");
+    if (dot) dot.classList.remove("ok");
+    if (text) text.textContent = "AI 状态异常";
+    if (configButton) configButton.title = err.message;
+    addMessage("system", err.message, {persist: false});
   }
 }
 
